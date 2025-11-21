@@ -28,7 +28,7 @@ class PetSitterAgentTester:
         app_name = "pet_sitter_test_session"
         self.session = await self.session_service.create_session(
             app_name=app_name,
-            user_id="test_user",
+            user_id="123e4567-e89b-12d3-a456-426614174001",
             session_id="test_session"
         )
 
@@ -58,7 +58,7 @@ class PetSitterAgentTester:
             # run the agent and process events directly with async for
             final_response = None
 
-            async for event in self.runner.run_async(user_id="test_user", session_id="test_session", new_message=content):
+            async for event in self.runner.run_async(user_id="123e4567-e89b-12d3-a456-426614174001", session_id="test_session", new_message=content):
                 if hasattr(event, 'content') and event.content and event.content.parts:
                     event_text = event.content.parts[0].text
                     if event.is_final_response():
@@ -81,38 +81,38 @@ class PetSitterAgentTester:
 # Sample conversation scenarios
 SAMPLE_CONVERSATIONS = {
     "complete_booking": [
-        {"sender": "Sarah",
+        {"sender": "Mike",
+         "message": "My pet professional id is ('123e4567-e89b-12d3-a456-426614174001'). Alice is our existing customer and Alice's customer id is ('123e4567-e89b-12d3-a456-426614174004')."},
+        {"sender": "Alice",
          "message": "Hi Mike! I need someone to watch Bella and Max next weekend. Bella is my 3-year-old Golden Retriever and Max is a 1-year-old tabby cat."},
         {"sender": "Mike",
          "message": "Yes, I can do that weekend. My rate is $50/day for both pets. What times work for you?"},
-        {"sender": "Sarah",
+        {"sender": "Alice",
          "message": "Perfect! I need you from 8 AM Saturday to 6 PM Sunday. So that's $100 total. My address is 123 Oak Street, and I can leave keys under the mat. Bella needs her medicine at 2 PM daily - it's in the kitchen cabinet."},
         {"sender": "Mike",
          "message": "Sounds good! I'll be there Saturday morning. Just to confirm - that's this coming Saturday the 23rd and Sunday the 24th, right?"},
-        {"sender": "Sarah", "message": "Yes exactly! Thanks Mike, you're the best. See you Saturday!"}
+        {"sender": "Alice", "message": "Yes exactly! Thanks Mike, you're the best. See you Saturday!"}
     ],
-
-    "incomplete_booking": [
-        {"sender": "Jennifer", "message": "Hey Alex, do you do dog walking?"},
-        {"sender": "Alex", "message": "Yes I do! What kind of dog and how often?"},
-        {"sender": "Jennifer", "message": "I have a German Shepherd named Rex. Maybe 2-3 times a week?"},
-        {"sender": "Alex", "message": "I charge $25 per walk. Does that work?"},
-        {"sender": "Jennifer", "message": "That sounds reasonable. Let me think about it and get back to you."}
-    ],
-
-    "complex_booking": [
-        {"sender": "David",
-         "message": "Hi Lisa! My wife and I are going out of town for a week. Can you watch our pets?"},
-        {"sender": "Lisa", "message": "Sure! Tell me about your pets and the dates."},
-        {"sender": "David",
-         "message": "We have 3 cats - Mittens (2 years), Shadow (4 years), and Whiskers (6 years). Also a small parrot named Kiwi. We'll be gone July 15th to 22nd."},
-        {"sender": "Lisa",
-         "message": "I can do that. For that many pets for a week, I'd charge $60/day. That's $420 total."},
-        {"sender": "David",
-         "message": "That works. We live at 456 Pine Avenue. Kiwi needs fresh fruit daily and the cats have automatic feeders. I'll leave detailed instructions."},
-        {"sender": "Lisa",
-         "message": "Perfect! I'll stop by the day before to meet everyone and get the instructions."},
-        {"sender": "David", "message": "Excellent! Looking forward to working with you."}
+    "new_customer_booking": [
+        {"sender": "Mike",
+         "message": "My pet professional id is ('123e4567-e89b-12d3-a456-426614174001')."},
+        {"sender": "Jessica",
+         "message": "Hi! I found your profile on PetPro. I'm Jessica Martinez and I'm new to the area. I need a pet sitter for my dog Charlie next week."},
+        {"sender": "Mike",
+         "message": "Welcome! I'd be happy to help. Tell me more about Charlie - what breed and age?"},
+        {"sender": "Jessica",
+         "message": "Charlie is a 5-year-old Labrador Retriever, very friendly and well-behaved. I need someone from December 1st to December 3rd while I'm away on a business trip."},
+        {"sender": "Mike",
+         "message": "Great! I charge $45 per day for one dog. That would be $135 for the three days. I can do morning and evening visits, or stay at your place if you prefer."},
+        {"sender": "Jessica",
+         "message": "Morning and evening visits would be perfect. My address is 456 Maple Avenue, Apt 2B. Charlie needs to be walked twice a day and fed at 7 AM and 6 PM. His food is in the pantry."},
+        {"sender": "Mike",
+         "message": "Perfect! Just to confirm - morning and evening visits from December 1st through December 3rd at 456 Maple Avenue, Apt 2B. Can you provide a contact number and email?"},
+        {"sender": "Jessica",
+         "message": "Sure! My phone is 555-123-4567 and email is jessica.martinez@email.com. I'll leave a key with the building manager."},
+        {"sender": "Mike",
+         "message": "Excellent! I'll send you a booking confirmation. Looking forward to meeting Charlie!"},
+        {"sender": "Jessica", "message": "Thank you so much! I feel much better knowing Charlie will be in good hands."}
     ]
 }
 
