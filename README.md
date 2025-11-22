@@ -7,7 +7,7 @@ Custom AI Agent built using Google ADK to automate administrative tasks for Pet 
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/thatsmerana/petpro-ai-agent.git
-   cd petpro-ai-agent
+   cd petpro_agent-ai-agent
    ```
 
 2. **Create and activate a virtual environment:**

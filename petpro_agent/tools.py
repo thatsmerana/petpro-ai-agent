@@ -1,4 +1,3 @@
-from typing import Dict
 from .api_client import PetProfessionalsAPIClient
 import json
 
@@ -193,9 +192,61 @@ async def get_services(professional_id: str) -> str:
             - professionalId: Professional's UUID
             - active: Boolean indicating if service is active
             - archived: Boolean indicating if service is archived
+
+
     """
     try:
         result = await api_client.get_services_by_professional_id(professional_id)
+        return json.dumps({
+            "success": True,
+            "data": result
+        })
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        })
+
+
+async def get_bookings(professional_id: str) -> str:
+    """Get all bookings for a professional
+
+    Args:
+        professional_id: ID of the pet professional
+
+    Returns:
+        JSON string with success status and list of booking objects, each containing:
+            - id: Booking UUID
+            - clientId: Customer UUID
+            - serviceId: Service UUID
+            - professionalId: Professional's UUID
+            - serviceRateId: Service rate UUID (may be null)
+            - startDate: Booking start date (YYYY-MM-DD)
+            - endDate: Booking end date (YYYY-MM-DD)
+            - startTime: Start time (HH:MM:SS)
+            - endTime: End time (HH:MM:SS)
+            - totalAmount: Total booking amount
+            - notes: Booking notes
+            - status: Booking status (scheduled, completed, cancelled)
+            - createdAt: Creation timestamp
+            - updatedAt: Last update timestamp
+            - extraPetFee: Additional fee for extra pets
+            - holidayFee: Holiday surcharge
+            - afterHourFee: After hours surcharge
+            - weekendFee: Weekend surcharge
+            - extraChargesTotal: Sum of all extra charges
+            - bookingPets: List of pet objects with petId and specialInstructions
+            - parentBookingId: Parent booking UUID for repeating bookings (may be null)
+            - isRepeating: Boolean indicating if booking repeats
+            - repeatType: Type of repetition (daily, weekly, etc., may be null)
+            - weeklyDays: Days of week for weekly repeats (may be null)
+            - repeatUntilDate: End date for repetition (may be null)
+            - maxOccurrences: Maximum number of occurrences (may be null)
+            - occurrenceNumber: Current occurrence number
+            - allDay: Boolean indicating if booking is all-day
+    """
+    try:
+        result = await api_client.get_bookings_by_professional_id(professional_id)
         return json.dumps({
             "success": True,
             "data": result
@@ -232,6 +283,49 @@ async def create_booking(booking_data_json: str) -> str:
     try:
         booking_data = json.loads(booking_data_json)
         result = await api_client.create_booking(booking_data)
+        return json.dumps({
+            "success": True,
+            "data": result
+        })
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        })
+
+
+async def update_booking(booking_id: str, booking_data_json: str) -> str:
+    """Update existing booking
+
+    Args:
+        booking_id: UUID of the booking to update
+        booking_data_json: JSON string of complete booking object (same schema as GET response):
+            - id: Booking UUID
+            - clientId: Customer UUID
+            - serviceId: Service UUID
+            - professionalId: Professional's UUID
+            - serviceRateId: Service rate UUID (may be null)
+            - startDate: Booking start date (YYYY-MM-DD)
+            - endDate: Booking end date (YYYY-MM-DD)
+            - startTime: Start time (HH:MM:SS or HH:MM)
+            - endTime: End time (HH:MM:SS or HH:MM)
+            - totalAmount: Total booking amount
+            - notes: Booking notes
+            - status: Booking status
+            - extraPetFee: Additional fee for extra pets
+            - holidayFee: Holiday surcharge
+            - afterHourFee: After hours surcharge
+            - weekendFee: Weekend surcharge
+            - extraChargesTotal: Sum of extra charges
+            - bookingPets: List of pet objects with petId and specialInstructions
+            - All other fields from the existing booking
+
+    Returns:
+        JSON string with updated booking information and success status
+    """
+    try:
+        booking_data = json.loads(booking_data_json)
+        result = await api_client.update_booking(booking_id, booking_data)
         return json.dumps({
             "success": True,
             "data": result
