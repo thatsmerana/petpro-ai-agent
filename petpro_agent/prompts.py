@@ -211,6 +211,7 @@ def booking_creation_agent_instruction(current_date: str) -> str:
     EXISTING BOOKING DETECTION:
     Step 1: Call get_bookings(professional_id) to get all existing bookings
     Step 2: For each booking in the list, check if ALL these match:
+      - booking.id == booking_id from previous conversations (if available)
       - booking.clientId == customer_id from previous step
       - booking.status == "scheduled" (ignore "cancelled" or "completed")
       - Dates overlap: requested_start_date <= booking.endDate AND requested_end_date >= booking.startDate
