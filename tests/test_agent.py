@@ -130,8 +130,8 @@ class PetSitterAgentTester:
 
 SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
     "complete_booking": [
-        {"sender": "Mike",
-         "message": "My pet professional id is ('123e4567-e89b-12d3-a456-426614174001'). Alice is our existing customer and Alice's customer id is ('123e4567-e89b-12d3-a456-426614174004')."},
+        {"sender": "System",
+         "message": "Mike's pet professional id is ('123e4567-e89b-12d3-a456-426614174001'). Alice is our existing customer and Alice's customer id is ('123e4567-e89b-12d3-a456-426614174004')."},
         {"sender": "Alice",
          "message": "Hi Mike! I need someone to watch Bella and Max next weekend. Bella is my 3-year-old Golden Retriever and Max is a 1-year-old tabby cat."},
         {"sender": "Mike",
@@ -141,27 +141,6 @@ SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
         {"sender": "Mike",
          "message": "Sounds good! I'll be there Saturday morning. Just to confirm - that's this coming Saturday the 23rd and Sunday the 24th, right?"},
         {"sender": "Alice", "message": "Yes exactly! Thanks Mike, you're the best. See you Saturday!"}
-    ],
-    "new_customer_booking": [
-        {"sender": "Mike",
-         "message": "My pet professional id is ('123e4567-e89b-12d3-a456-426614174001')."},
-        {"sender": "Jessica",
-         "message": "Hi! I found your profile on PetPro. I'm Jessica Martinez and I'm new to the area. I need a pet sitter for my dog Charlie next week."},
-        {"sender": "Mike",
-         "message": "Welcome! I'd be happy to help. Tell me more about Charlie - what breed and age?"},
-        {"sender": "Jessica",
-         "message": "Charlie is a 5-year-old Labrador Retriever, very friendly and well-behaved. I need someone from December 1st to December 3rd while I'm away on a business trip."},
-        {"sender": "Mike",
-         "message": "Great! I charge $45 per day for one dog. That would be $135 for the three days. I can do morning and evening visits, or stay at your place if you prefer."},
-        {"sender": "Jessica",
-         "message": "Morning and evening visits would be perfect. My address is 456 Maple Avenue, Apt 2B. Charlie needs to be walked twice a day and fed at 7 AM and 6 PM. His food is in the pantry."},
-        {"sender": "Mike",
-         "message": "Perfect! Just to confirm - morning and evening visits from December 1st through December 3rd at 456 Maple Avenue, Apt 2B. Can you provide a contact number and email?"},
-        {"sender": "Jessica",
-         "message": "Sure! My phone is 555-123-4567 and email is jessica.martinez@email.com. I'll leave a key with the building manager."},
-        {"sender": "Mike",
-         "message": "Excellent! I'll send you a booking confirmation. Looking forward to meeting Charlie!"},
-        {"sender": "Jessica", "message": "Thank you so much! I feel much better knowing Charlie will be in good hands."}
     ]
 }
 

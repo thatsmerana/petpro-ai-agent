@@ -11,5 +11,6 @@ intent_classifier_agent = LlmAgent(
     output_key="intent_classification",
 )
 
-__all__ = ["intent_classifier_agent"]
+agent = intent_classifier_agent
 
+__all__ = ["intent_classifier_agent"]

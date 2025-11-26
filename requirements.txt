@@ -1,3 +1,5 @@
-google-adk
+google-adk[eval]
 python-dotenv
 aiohttp
+pytest==9.0.1
+pytest-asyncio==1.3.0
