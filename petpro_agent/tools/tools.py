@@ -335,3 +335,4 @@ async def update_booking(booking_id: str, booking_data_json: str) -> str:
             "success": False,
             "error": str(e)
         })
+

@@ -61,6 +61,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Logs directory
+logs/
+
+# Project documentation
+PROJECT_DOCUMENTATION.md
+
 # Flask stuff:
 instance/
 .webassets-cache

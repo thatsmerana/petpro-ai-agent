@@ -1,7 +1,12 @@
+"""
+Main entry point for PetPro AI Agent.
+
+This script runs the test agent to demonstrate the agent's capabilities
+with sample conversations.
+"""
+import asyncio
 import os
 from dotenv import load_dotenv
-from course import agents, multiagents, sequential_multiagents, parallel_multiagents
-import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -10,23 +15,13 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 if GOOGLE_API_KEY:
-    print("Gemini API Key loaded successfully.")
+    print("✅ Gemini API Key loaded successfully.")
 else:
-    print("Failed to load Gemini API Key.")
+    print("❌ Failed to load Gemini API Key.")
+    exit(1)
 
-#
-# response = asyncio.run(agents.search())
-# print("Response from single agent:")
-# print(response)
+# Import and run the test agent
+from petpro_agent.tests.test_agent import main
 
-# response = asyncio.run(multiagents.search())
-# print("Response from multiagent:")
-# print(response)
-
-# response = asyncio.run(sequential_multiagents.write())
-# print("Response from sequential agent:")
-# print(response)
-
-# response = asyncio.run(parallel_multiagents.research("Run the daily executive briefing on Tech, Health, and Finance"))
-# print("Response from parallel agent:")
-# print(response)
+if __name__ == "__main__":
+    asyncio.run(main())

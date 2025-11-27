@@ -1,0 +1,577 @@
+{
+  "eval_set_id": "intent_classifier_eval_set",
+  "name": "Intent Classifier Evaluation Set",
+  "description": "Evaluation set for testing intent classification accuracy. IMPORTANT: For date fields (booking.dates, booking.start_date), the agent calculates actual dates from current_date. Expected responses show relative phrases (e.g., 'next weekend', 'Saturday'), but actual responses with calculated dates in YYYY-MM-DD format (e.g., '2025-12-06' or '2025-12-06 to 2025-12-07') are CORRECT and should be accepted. The evaluator should consider calculated dates as semantically equivalent to relative date phrases.",
+  "eval_cases": [
+    {
+      "eval_id": "casual_conversation_1",
+      "conversation": [
+        {
+          "invocation_id": "invocation_001",
+          "user_content": {
+            "parts": [
+              {
+                "text": "System: Pet Profession id is 123e4567-e89b-12d3-a456-426614174001."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"CASUAL_CONVERSATION\", \"confidence\": 0.99, \"entities\": {}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "booking_request_1",
+      "conversation": [
+        {
+          "invocation_id": "invocation_002",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: Hi, I am Mike. I need pet sitting for my dog Bella next weekend. She's a 3-year-old Golden Retriever."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"customer\": {\"name\": \"Mike\"}, \"pets\": [{\"name\": \"Bella\", \"type\": \"dog\", \"breed\": \"Golden Retriever\", \"age\": \"3 years old\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "booking_details_1",
+      "conversation": [
+        {
+          "invocation_id": "invocation_003a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: Hi, I need pet sitting for my dog next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_003b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: I need someone from Saturday 8 AM to Sunday 6 PM. My address is 123 Oak Street."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_DETAILS\", \"confidence\": 0.99, \"entities\": {\"customer\": {\"address\": \"123 Oak Street\"}, \"pets\": [], \"booking\": {\"start_time\": \"08:00\", \"end_time\": \"18:00\", \"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "booking_details_2",
+      "conversation": [
+        {
+          "invocation_id": "invocation_004a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: I need pet sitting for my dog Bella next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"name\": \"Bella\", \"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_004b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: Bella needs her medicine at 2 PM daily - it's in the kitchen cabinet."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_DETAILS\", \"confidence\": 0.97, \"entities\": {\"pets\": [{\"name\": \"Bella\", \"special_needs\": \"medicine at 2 PM daily\", \"medication_instructions\": \"in the kitchen cabinet\"}]}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "pet_sitter_confirmation_1",
+      "conversation": [
+        {
+          "invocation_id": "invocation_005a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: Hi, I need pet sitting for my dog next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_005b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Pet Sitter: Yes, I'm available for those dates!"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"PET_SITTER_CONFIRMATION\", \"confidence\": 1.0, \"entities\": {\"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": true}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "pet_sitter_confirmation_2",
+      "conversation": [
+        {
+          "invocation_id": "invocation_006a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: I need pet sitting for my dog next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_006b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Pet Sitter: Let's plan a meet and greet. I can do that weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"PET_SITTER_CONFIRMATION\", \"confidence\": 1.0, \"entities\": {\"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": true}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "pet_sitter_confirmation_3",
+      "conversation": [
+        {
+          "invocation_id": "invocation_007a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: I need pet sitting for my dog next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_007b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Pet Sitter: Sounds good, let's book it!"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"PET_SITTER_CONFIRMATION\", \"confidence\": 1.0, \"entities\": {}, \"should_execute\": true}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "pet_sitter_confirmation_4",
+      "conversation": [
+        {
+          "invocation_id": "invocation_008a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: I need pet sitting for my dog next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_008b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Pet Sitter: I'm available for those dates, that works for me."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"PET_SITTER_CONFIRMATION\", \"confidence\": 1.0, \"entities\": {\"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": true}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "service_confirmation_1",
+      "conversation": [
+        {
+          "invocation_id": "invocation_009a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: I need pet sitting for my two dogs, Max and Bella, next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"pets\": [{\"name\": \"Max\", \"type\": \"dog\"}, {\"name\": \"Bella\", \"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_009b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Pet Sitter: My rate is $50/day for both pets."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"SERVICE_CONFIRMATION\", \"confidence\": 0.95, \"entities\": {\"booking\": {\"pricing\": \"$50/day\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "final_confirmation_1",
+      "conversation": [
+        {
+          "invocation_id": "invocation_010a",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: Hi, I need pet sitting for my dog Bella next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"customer\": {\"name\": \"Customer\"}, \"pets\": [{\"name\": \"Bella\", \"type\": \"dog\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_010b",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Pet Sitter: Yes, I'm available for those dates!"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"PET_SITTER_CONFIRMATION\", \"confidence\": 1.0, \"entities\": {\"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": true}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        },
+        {
+          "invocation_id": "invocation_010c",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: Perfect! Thanks Mike, you're the best. See you Saturday!"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"FINAL_CONFIRMATION\", \"confidence\": 0.98, \"entities\": {\"booking\": {\"start_date\": \"Saturday\"}}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "casual_conversation_2",
+      "conversation": [
+        {
+          "invocation_id": "invocation_011",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Customer: How's the weather today?"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"intent\": \"CASUAL_CONVERSATION\", \"confidence\": 0.99, \"entities\": {}, \"should_execute\": false}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}

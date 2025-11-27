@@ -1,7 +1,12 @@
 import asyncio
 import json
+import sys
+import os
 from typing import List, Dict
 from dotenv import load_dotenv
+
+# Add parent directory to path to allow imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Google ADK imports
 from google.adk.runners import Runner
@@ -10,6 +15,7 @@ from google.genai import types
 from google.genai.errors import ClientError
 
 from petpro_agent import root_agent
+from petpro_agent.utils import create_runner_with_logging
 
 load_dotenv()
 
@@ -31,12 +37,23 @@ class PetSitterAgentTester:
             session_id="test_session"
         )
 
-        self.runner = Runner(
+        # Create runner with logging plugin enabled
+        self.runner = create_runner_with_logging(
             agent=root_agent,
             app_name=app_name,
-            session_service=self.session_service
+            session_service=self.session_service,
+            enable_logging=True
         )
-        print("✅ Session and Runner created successfully.")
+        
+        # Fallback to standard Runner if helper function returns None
+        if self.runner is None:
+            self.runner = Runner(
+                agent=root_agent,
+                app_name=app_name,
+                session_service=self.session_service
+            )
+        
+        print("✅ Session and Runner created successfully with logging plugin.")
 
     async def cleanup(self):
         """Release resources to avoid unclosed aiohttp client session warnings."""
@@ -135,11 +152,11 @@ SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
         {"sender": "Alice",
          "message": "Hi Mike! I need someone to watch Bella and Max next weekend. Bella is my 3-year-old Golden Retriever and Max is a 1-year-old tabby cat."},
         {"sender": "Mike",
-         "message": "Yes, I can do that weekend. My rate is $50/day for both pets. What times work for you?"},
+         "message": "My rate is $50/day for both pets. What times work for you?"},
         {"sender": "Alice",
          "message": "Perfect! I need you from 8 AM Saturday to 6 PM Sunday. So that's $100 total. My address is 123 Oak Street, and I can leave keys under the mat. Bella needs her medicine at 2 PM daily - it's in the kitchen cabinet."},
         {"sender": "Mike",
-         "message": "Sounds good! I'll be there Saturday morning. Just to confirm - that's this coming Saturday the 23rd and Sunday the 24th, right?"},
+         "message": "Yes, I can do that weekend! I'll be there Saturday morning. Just to confirm - that's this coming Saturday the 23rd and Sunday the 24th, right?"},
         {"sender": "Alice", "message": "Yes exactly! Thanks Mike, you're the best. See you Saturday!"}
     ]
 }
@@ -156,8 +173,10 @@ async def main():
         for key in SAMPLE_CONVERSATIONS.keys():
             print(f"  - {key}")
 
+        print("\n" + "=" * 50 + "\n")
+        
         for scenario_name, conversation in SAMPLE_CONVERSATIONS.items():
-            print(f"  - {scenario_name}")
+            print(f"📋 Running scenario: {scenario_name}")
             await sitter_agent.process_conversation(conversation)
             print("\n" + "=" * 50 + "\n")
     finally:

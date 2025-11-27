@@ -1,7 +1,53 @@
 # Shared configuration for agent modules
+import logging
+import logging.handlers
+import os
 import datetime
+import json
+from pathlib import Path
 from google.genai import types
 from google.adk.models import Gemini
+
+# Create logs directory if it doesn't exist
+logs_dir = Path("logs")
+logs_dir.mkdir(exist_ok=True)
+
+# Clean up any previous logs in logs directory (optional - comment out if you want to keep logs)
+# for log_file in ["logger.log", "web.log", "tunnel.log"]:
+#     log_path = logs_dir / log_file
+#     if log_path.exists():
+#         log_path.unlink()
+#         print(f"🧹 Cleaned up {log_path}")
+
+# Configure logging with DEBUG log level and log rotation
+# Log rotation: max 10MB per file, keep 5 backup files
+log_file_path = logs_dir / "logger.log"
+log_handler = logging.handlers.RotatingFileHandler(
+    filename=str(log_file_path),
+    maxBytes=10 * 1024 * 1024,  # 10MB
+    backupCount=5,
+    encoding='utf-8'
+)
+
+# Use structured format that's easy to parse
+log_formatter = logging.Formatter(
+    "%(asctime)s|%(filename)s:%(lineno)s|%(levelname)s|%(name)s|%(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+log_handler.setFormatter(log_formatter)
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+root_logger.addHandler(log_handler)
+
+# Also add console handler for development (optional)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(log_formatter)
+root_logger.addHandler(console_handler)
+
+print("✅ Logging configured with rotation (10MB, 5 backups)")
 
 # Current date (ISO) used in prompt builders
 CURRENT_DATE = datetime.datetime.now().strftime("%Y-%m-%d")

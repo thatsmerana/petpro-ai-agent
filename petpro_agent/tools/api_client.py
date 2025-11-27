@@ -201,3 +201,4 @@ class PetProfessionalsAPIClient:
                     raise Exception(f"API Error {response.status}: {response_text}")
 
                 return await response.json() if response_text else {}
+

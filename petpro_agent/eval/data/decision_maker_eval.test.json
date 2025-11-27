@@ -1,0 +1,205 @@
+{
+  "eval_set_id": "decision_maker_eval_set",
+  "name": "Decision Maker Evaluation Set",
+  "description": "Evaluation set for testing decision maker agent's workflow invocation logic",
+  "eval_cases": [
+    {
+      "eval_id": "collect_info_booking_request",
+      "conversation": [
+        {
+          "invocation_id": "invocation_001",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Intent: BOOKING_REQUEST, Confidence: 0.90. Customer: I need pet sitting for Bella next weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"should_invoke_workflow\": false, \"action\": \"collect_info\", \"collected_entities\": {\"customer\": {}, \"pets\": [{\"name\": \"Bella\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"reasoning\": \"Collecting booking information. Waiting for pet sitter confirmation before executing workflow.\", \"message\": \"I've noted the booking details. Waiting for pet sitter to confirm availability.\"}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "collect_info_booking_details",
+      "conversation": [
+        {
+          "invocation_id": "invocation_002",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Intent: BOOKING_DETAILS, Confidence: 0.88. Customer: Bella is a 3-year-old Golden Retriever, I need service from Saturday 8 AM to Sunday 6 PM."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"should_invoke_workflow\": false, \"action\": \"collect_info\", \"collected_entities\": {\"customer\": {}, \"pets\": [{\"name\": \"Bella\", \"species\": \"Dog\", \"breed\": \"Golden Retriever\", \"age\": \"3 years old\"}], \"booking\": {\"start_time\": \"Saturday 8 AM\", \"end_time\": \"Sunday 6 PM\"}}, \"reasoning\": \"Collecting booking information. Waiting for pet sitter confirmation before executing workflow.\", \"message\": \"I've noted the booking details. Waiting for pet sitter to confirm availability.\"}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "execute_workflow_confirmation",
+      "conversation": [
+        {
+          "invocation_id": "invocation_003",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Intent: PET_SITTER_CONFIRMATION, Confidence: 0.95. Pet Sitter: Yes, I'm available for those dates!"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"should_invoke_workflow\": true, \"customer_verified\": false, \"customer_id\": null, \"pets_verified\": false, \"pet_ids\": null, \"booking_id\": null, \"reasoning\": \"Pet sitter confirmed. Executing booking workflow with collected information.\", \"action\": \"invoke_workflow\"}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "execute_workflow_meet_greet",
+      "conversation": [
+        {
+          "invocation_id": "invocation_004",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Intent: PET_SITTER_CONFIRMATION, Confidence: 0.92. Pet Sitter: Let's plan a meet and greet. I can do that weekend."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"should_invoke_workflow\": true, \"customer_verified\": false, \"customer_id\": null, \"pets_verified\": false, \"pet_ids\": null, \"booking_id\": null, \"reasoning\": \"Pet sitter confirmed. Executing booking workflow with collected information.\", \"action\": \"invoke_workflow\"}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "collect_info_service_confirmation",
+      "conversation": [
+        {
+          "invocation_id": "invocation_005",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Intent: SERVICE_CONFIRMATION, Confidence: 0.85. Pet Sitter: My rate is $50/day for both pets."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"should_invoke_workflow\": false, \"action\": \"collect_info\", \"collected_entities\": {\"customer\": {}, \"pets\": [], \"booking\": {\"pricing\": \"$50/day\"}}, \"reasoning\": \"Collecting booking information. Waiting for pet sitter confirmation before executing workflow.\", \"message\": \"I've noted the booking details. Waiting for pet sitter to confirm availability.\"}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "casual_no_action",
+      "conversation": [
+        {
+          "invocation_id": "invocation_006",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Intent: CASUAL_CONVERSATION, Confidence: 0.80. Customer: How's the weather today?"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "{\"should_invoke_workflow\": false, \"action\": \"acknowledge\", \"reasoning\": \"Casual conversation detected. No booking actions needed.\", \"message\": \"I'm here to help with pet sitting bookings. Let me know if you need anything!\"}"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "petpro_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}
