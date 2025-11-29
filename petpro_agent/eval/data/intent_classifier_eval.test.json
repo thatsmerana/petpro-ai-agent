@@ -52,7 +52,7 @@
           "final_response": {
             "parts": [
               {
-                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"customer\": {\"name\": \"Mike\"}, \"pets\": [{\"name\": \"Bella\", \"type\": \"dog\", \"breed\": \"Golden Retriever\", \"age\": \"3 years old\"}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
+                "text": "{\"intent\": \"BOOKING_REQUEST\", \"confidence\": 0.98, \"entities\": {\"customer\": {\"name\": \"Mike\"}, \"pets\": [{\"name\": \"Bella\", \"type\": \"dog\", \"breed\": \"Golden Retriever\", \"age\": 3}], \"booking\": {\"dates\": \"next weekend\"}}, \"should_execute\": false}"
               }
             ],
             "role": "model"

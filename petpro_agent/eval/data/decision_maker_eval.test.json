@@ -1,7 +1,7 @@
 {
   "eval_set_id": "decision_maker_eval_set",
   "name": "Decision Maker Evaluation Set",
-  "description": "Evaluation set for testing decision maker agent's workflow invocation logic",
+  "description": "Evaluation set for testing decision maker agent's non-workflow cases (info collection and acknowledgment only)",
   "eval_cases": [
     {
       "eval_id": "collect_info_booking_request",
@@ -70,76 +70,10 @@
       }
     },
     {
-      "eval_id": "execute_workflow_confirmation",
-      "conversation": [
-        {
-          "invocation_id": "invocation_003",
-          "user_content": {
-            "parts": [
-              {
-                "text": "Intent: PET_SITTER_CONFIRMATION, Confidence: 0.95. Pet Sitter: Yes, I'm available for those dates!"
-              }
-            ],
-            "role": "user"
-          },
-          "final_response": {
-            "parts": [
-              {
-                "text": "{\"should_invoke_workflow\": true, \"customer_verified\": false, \"customer_id\": null, \"pets_verified\": false, \"pet_ids\": null, \"booking_id\": null, \"reasoning\": \"Pet sitter confirmed. Executing booking workflow with collected information.\", \"action\": \"invoke_workflow\"}"
-              }
-            ],
-            "role": "model"
-          },
-          "intermediate_data": {
-            "tool_uses": [],
-            "intermediate_responses": []
-          }
-        }
-      ],
-      "session_input": {
-        "app_name": "petpro_agent",
-        "user_id": "test_user",
-        "state": {}
-      }
-    },
-    {
-      "eval_id": "execute_workflow_meet_greet",
-      "conversation": [
-        {
-          "invocation_id": "invocation_004",
-          "user_content": {
-            "parts": [
-              {
-                "text": "Intent: PET_SITTER_CONFIRMATION, Confidence: 0.92. Pet Sitter: Let's plan a meet and greet. I can do that weekend."
-              }
-            ],
-            "role": "user"
-          },
-          "final_response": {
-            "parts": [
-              {
-                "text": "{\"should_invoke_workflow\": true, \"customer_verified\": false, \"customer_id\": null, \"pets_verified\": false, \"pet_ids\": null, \"booking_id\": null, \"reasoning\": \"Pet sitter confirmed. Executing booking workflow with collected information.\", \"action\": \"invoke_workflow\"}"
-              }
-            ],
-            "role": "model"
-          },
-          "intermediate_data": {
-            "tool_uses": [],
-            "intermediate_responses": []
-          }
-        }
-      ],
-      "session_input": {
-        "app_name": "petpro_agent",
-        "user_id": "test_user",
-        "state": {}
-      }
-    },
-    {
       "eval_id": "collect_info_service_confirmation",
       "conversation": [
         {
-          "invocation_id": "invocation_005",
+          "invocation_id": "invocation_003",
           "user_content": {
             "parts": [
               {
@@ -172,7 +106,7 @@
       "eval_id": "casual_no_action",
       "conversation": [
         {
-          "invocation_id": "invocation_006",
+          "invocation_id": "invocation_004",
           "user_content": {
             "parts": [
               {

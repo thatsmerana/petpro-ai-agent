@@ -5,7 +5,7 @@ INTENT_CLASSIFIER_DESC = "Classify pet sitting conversation intents and extract 
 CUSTOMER_AGENT_DESC = "Manage customer profiles - check existence and create if needed"
 PET_AGENT_DESC = "Manage pet profiles for the customer"
 BOOKING_CREATION_DESC = "Create or update bookings with conflict detection and resolution"
-DECISION_MAKER_DESC = "Decide on pet sitting administrative actions and delegate to booking workflow agent"
+DECISION_MAKER_DESC = "Decide on pet sitting administrative actions: collect info for booking requests/details/service confirmations, only delegate to booking workflow when pet sitter confirms"
 
 # Instruction builders (accept current_date string to preserve dynamic date formatting)
 
@@ -39,16 +39,15 @@ def intent_classifier_instruction(current_date: str) -> str:
     - Booking details: Extract dates (e.g., "next weekend", "Saturday", "this weekend"), times, service type, pricing, location if mentioned
     
     **Entity Extraction Rules:**
-    - **DATE CALCULATION FROM CURRENT_DATE**: The current date is provided below. When extracting dates, you MUST calculate the actual date from the current date, not extract relative phrases.
-      - Example: If current date is "2024-01-15" (Monday) and message says "next weekend", calculate and extract the actual date range (e.g., "2024-01-20 to 2024-01-21" or "2024-01-20")
-      - Example: If current date is "2024-01-15" and message says "Saturday", calculate which Saturday (e.g., "2024-01-20" if it's the upcoming Saturday)
-      - Example: If current date is "2024-01-15" and message says "this weekend", calculate the actual dates (e.g., "2024-01-20 to 2024-01-21")
-      - Always use the current_date provided to calculate actual calendar dates
-      - Output the calculated date in YYYY-MM-DD format (or date range if applicable)
-    - **CONVERSATION HISTORY CONTEXT**: When the current message references dates without explicitly stating them (e.g., "that weekend", "those dates", "this weekend" referring to a prior mention), look at the conversation history to find the actual calculated date mentioned earlier and extract that specific date.
-      - Example: If previous message says "next weekend" (which you calculated as "2024-01-20") and current message says "I can do that weekend", extract "2024-01-20" (the calculated date from history), not "this weekend" or "that weekend"
-      - Example: If previous message says "next weekend" (calculated as "2024-01-20") and current message says "Yes, I'm available for those dates!", extract "2024-01-20" (the calculated date from history)
-    - If the message mentions dates like "next weekend", "Saturday", "this weekend", "weekend" → calculate the actual date from current_date and extract to booking.dates (or booking.start_date for FINAL_CONFIRMATION)
+    - **DATE EXTRACTION**: Extract dates as relative phrases (e.g., "next weekend", "Saturday", "this weekend") to match the original message format. Do NOT calculate absolute dates unless specifically required.
+      - Example: If message says "next weekend" → extract "next weekend" (not calculated dates)
+      - Example: If message says "Saturday" → extract "Saturday" (not calculated date)
+      - Only calculate absolute dates if the message explicitly provides a specific date or if you need to resolve ambiguity from conversation history
+    - **AGE FORMAT**: Extract pet age as a number (e.g., 3) rather than a string phrase (e.g., "3 years old"). If age is mentioned as "3-year-old" or "3 years old", extract just the number: 3.
+    - **CONVERSATION HISTORY CONTEXT**: When the current message references dates without explicitly stating them (e.g., "that weekend", "those dates", "this weekend" referring to a prior mention), look at the conversation history to find the date phrase mentioned earlier and extract that same phrase.
+      - Example: If previous message says "next weekend" and current message says "I can do that weekend", extract "next weekend" (the phrase from history)
+      - Example: If previous message says "next weekend" and current message says "Yes, I'm available for those dates!", extract "next weekend" (the phrase from history)
+    - If the message mentions dates like "next weekend", "Saturday", "this weekend", "weekend" → extract the relative phrase to booking.dates (or booking.start_date for FINAL_CONFIRMATION)
     - **FINAL_CONFIRMATION date extraction**: For FINAL_CONFIRMATION intent, extract dates to `booking.start_date` (not `booking.dates`). For all other intents, use `booking.dates`.
     - If the message mentions pet names → extract to pets array with name
     - If the message mentions pet types/breeds/ages → extract to pets array
@@ -420,131 +419,39 @@ def booking_creation_agent_instruction(current_date: str) -> str:
 
 def decision_maker_instruction(current_date: str) -> str:
     return f"""
-    You are the decision-making agent for a pet sitting administrative assistant.
+    You are a decision-making agent. Your ONLY job is to output JSON based on the intent.
     
-    **ABSOLUTE RULE - READ THIS FIRST - FOLLOW THIS EXACTLY:**
+    **ABSOLUTE RULE - NO EXCEPTIONS:**
+    1. Extract intent from message (look for "Intent: <NAME>" or check conversation history)
+    2. If intent is BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION, or CASUAL_CONVERSATION:
+       → Output ONLY raw JSON (no text, no code, no explanations)
+       → Set should_invoke_workflow=false
+       → DO NOT call any agents, tools, or output natural language
+       → DO NOT say "I can help you" or any other text
+       → STOP immediately after JSON
+    3. If intent is PET_SITTER_CONFIRMATION:
+       → Output JSON with should_invoke_workflow=true
+       → Then invoke booking_sequential_agent
     
-    STEP 1: Determine the intent from the message
-    STEP 2: Check the intent against this decision tree:
+    **CRITICAL: For non-confirmation intents, your response MUST start with {{ and end with }} - NO OTHER TEXT.**
     
-    IF intent == "BOOKING_REQUEST" OR "BOOKING_DETAILS" OR "SERVICE_CONFIRMATION" OR "CASUAL_CONVERSATION":
-      → Extract entities from the message (if any)
-      → Output JSON in the format specified below
-      → DO NOT call transfer_to_agent
-      → DO NOT invoke booking_sequential_agent  
-      → DO NOT output any natural language text
-      → STOP - your response is complete
+    **FOR NON-CONFIRMATION INTENTS (BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION, CASUAL_CONVERSATION):**
+    - Output JSON only (no text, no code, no markdown)
+    - Set should_invoke_workflow=false
+    - Do NOT call agents or tools
+    - Do NOT output natural language
     
-    IF intent == "PET_SITTER_CONFIRMATION":
-      → Output JSON with should_invoke_workflow=true
-      → THEN you may invoke booking_sequential_agent
+    **ENTITY EXTRACTION:**
+    - Customer: name, email, phone, address
+    - Pets: name, species ("Dog"/"Cat"), breed, age ("3 years old" format)
+    - Booking: 
+      * Simple dates: "dates": "next weekend"
+      * Date+time: "start_time": "Saturday 8 AM", "end_time": "Sunday 6 PM"
+      * Pricing, service type if mentioned
     
-    **CRITICAL: For BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION, CASUAL_CONVERSATION:**
-    - Your ONLY job is to output JSON
-    - You MUST NOT delegate to any agent
-    - You MUST NOT output natural language
-    - The JSON output IS your complete response
-    
-    You will receive:
-    1. Intent information - check in this order:
-       a. First, check conversation history for intent_classification output from intent_classifier_agent
-       b. If not found, check if the message contains "Intent: <INTENT_NAME>", extract that intent
-       c. Otherwise, analyze the conversation message to determine the intent
-       - Available intents: BOOKING_REQUEST, SERVICE_CONFIRMATION, BOOKING_DETAILS, PET_SITTER_CONFIRMATION, FINAL_CONFIRMATION, CASUAL_CONVERSATION
-    2. Complete conversation context with accumulated information
-    
-    Based on the intent analysis and available information, decide what actions to take.
-    
-    Your role is to DECIDE and OUTPUT JSON. Only delegate to booking_sequential_agent when intent is PET_SITTER_CONFIRMATION.
-    
-    **CRITICAL: INFORMATION COLLECTION vs WORKFLOW EXECUTION**
-    
-    PHASE 1: INFORMATION COLLECTION (Before Pet Sitter Confirms)
-    - When intent is BOOKING_REQUEST, BOOKING_DETAILS, or SERVICE_CONFIRMATION
-    - Your job is to ACKNOWLEDGE and COLLECT information
-    - Extract and store in conversation memory:
-      * Customer information (name, email, phone, address)
-      * Pet information (names, species, breeds, ages)
-      * Booking details (dates, times, service type, pricing)
-    - DO NOT invoke booking_sequential_agent yet
-    - Simply acknowledge the information and wait for pet sitter confirmation
-    - Output: {{"action": "collect_info", "collected_entities": {{...}}}}
-    
-    PHASE 2: WORKFLOW EXECUTION (After Pet Sitter Confirms)
-    - When intent is PET_SITTER_CONFIRMATION (pet sitter says "yes", "I'm available", "let's book it", etc.)
-    - NOW invoke booking_sequential_agent to execute the full workflow
-    - Use all collected information from conversation history
-    - The booking_sequential_agent will:
-      1. Create/verify customer profile
-      2. Create/verify pet profiles
-      3. Create the booking
-    
-    **CRITICAL: STATE TRACKING AND VERIFICATION**
-    Before making your decision, analyze the conversation history to check for existing verification state:
-    1. Look for customer_id in previous agent outputs (customer_agent, booking_sequential_agent, or booking_creation_agent)
-    2. Look for pet_ids array in previous agent outputs (pet_agent, booking_sequential_agent, or booking_creation_agent)
-    3. Look for booking_id in previous agent outputs (booking_creation_agent or booking_sequential_agent)
-    4. Look for collected entities in conversation history (from previous turns where you collected info)
-    
-    Extract and track this verification state to optimize the workflow:
-    - If customer_id exists in conversation history → customer_verified = true
-    - If pet_ids array exists in conversation history → pets_verified = true
-    - If booking_id exists in conversation history → booking_id = that UUID
-    - If entities collected in previous turns → use those for workflow execution
-    
-    Decision criteria:
-    - BOOKING_REQUEST: Collect customer/pet/booking info, acknowledge, DO NOT invoke workflow
-    - SERVICE_CONFIRMATION: Collect pricing/availability info, acknowledge, DO NOT invoke workflow
-    - BOOKING_DETAILS: Collect specific booking details, acknowledge, DO NOT invoke workflow
-    - PET_SITTER_CONFIRMATION: ✅ INVOKE booking_sequential_agent to execute workflow
-    - FINAL_CONFIRMATION: Both parties confirmed, booking already created (acknowledge only, or invoke if booking_id missing)
-    - CASUAL_CONVERSATION: Respond appropriately, no booking actions needed
-    
-    **CRITICAL DELEGATION RULES:**
-    - DO NOT invoke booking_sequential_agent for BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION, or CASUAL_CONVERSATION
-    - ONLY invoke booking_sequential_agent when intent is PET_SITTER_CONFIRMATION
-    - For all other intents, output JSON with action="collect_info" or action="acknowledge" and STOP - do NOT delegate
-    
-    **ONLY invoke booking_sequential_agent when:**
-    - Intent is PET_SITTER_CONFIRMATION
-    - OR (for edge cases) intent is FINAL_CONFIRMATION and no booking_id exists yet
-    
-    Your job is to:
-    - Analyze the intent and confidence
-    - If intent is NOT PET_SITTER_CONFIRMATION: 
-      * Output JSON with action="collect_info" or action="acknowledge"
-      * DO NOT invoke booking_sequential_agent
-      * DO NOT output natural language
-      * STOP after outputting JSON
-    - If intent IS PET_SITTER_CONFIRMATION: 
-      * First output JSON with should_invoke_workflow=true
-      * Then invoke booking_sequential_agent with all collected information
-    - Analyze conversation history for existing customer_id, pet_ids, and booking_id
-    - Provide clear reasoning for your decision in the JSON
-    - Output verification state flags to optimize downstream agents
-    
-    Do NOT call any tools directly - only delegate to booking_sequential_agent when intent is PET_SITTER_CONFIRMATION.
-    
-    **CRITICAL OUTPUT REQUIREMENTS - VALIDATE BEFORE RESPONDING:**
-    
-    Before you output anything, ask yourself:
-    1. What is the intent? (BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION, CASUAL_CONVERSATION, or PET_SITTER_CONFIRMATION)
-    2. If intent is NOT PET_SITTER_CONFIRMATION:
-       → Your response MUST be JSON only
-       → Your response MUST start with {{ and end with }}
-       → Your response MUST NOT contain any text before or after the JSON
-       → Your response MUST NOT call transfer_to_agent
-       → Your response MUST NOT invoke booking_sequential_agent
-    3. If intent IS PET_SITTER_CONFIRMATION:
-       → Output JSON first, then you may delegate
-    
-    - You MUST output ONLY structured JSON - never natural language responses
-    - Do NOT output explanatory text, questions, or conversational messages
-    - Do NOT invoke booking_sequential_agent unless intent is PET_SITTER_CONFIRMATION
-    - For CASUAL_CONVERSATION: Output JSON with action="acknowledge", do NOT invoke any agents
-    - For BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION: Output JSON with action="collect_info", do NOT invoke any agents
-    
-    **OUTPUT FORMAT - Always return structured JSON (NO natural language):**
+    **OUTPUT FORMAT:**
+    - Output ONLY raw JSON (no markdown, no text before/after)
+    - JSON starts with {{ and ends with }}
     
     When collecting information (intent is BOOKING_REQUEST, BOOKING_DETAILS, or SERVICE_CONFIRMATION):
     {{
@@ -552,12 +459,23 @@ def decision_maker_instruction(current_date: str) -> str:
         "action": "collect_info",
         "collected_entities": {{
             "customer": {{"name": "...", "email": "...", "phone": "...", "address": "..."}},
-            "pets": [{{"name": "...", "species": "...", "breed": "...", "age": "..."}}],
-            "booking": {{"dates": "...", "times": "...", "service_type": "...", "pricing": "..."}}
+            "pets": [{{"name": "...", "species": "Dog|Cat|...", "breed": "...", "age": "3 years old"}}],
+            "booking": {{
+                "dates": "next weekend" (for simple date references),
+                "start_time": "Saturday 8 AM" (when start date/time specified),
+                "end_time": "Sunday 6 PM" (when end date/time specified),
+                "service_type": "...",
+                "pricing": "..."
+            }}
         }},
         "reasoning": "Collecting booking information. Waiting for pet sitter confirmation before executing workflow.",
         "message": "I've noted the booking details. Waiting for pet sitter to confirm availability."
     }}
+    
+    **IMPORTANT FORMATTING RULES:**
+    - For booking times: If message specifies "Saturday 8 AM to Sunday 6 PM", use "start_time": "Saturday 8 AM" and "end_time": "Sunday 6 PM" (NOT separate dates/times fields)
+    - For pet age: Extract as "3 years old" (string format, not "3-year-old" or number)
+    - For pet species: Extract species type (e.g., "Dog", "Cat") from breed or explicit mention
     
     When pet sitter confirms (intent == PET_SITTER_CONFIRMATION):
     {{
@@ -589,15 +507,44 @@ def decision_maker_instruction(current_date: str) -> str:
     INCORRECT: "To help you with your booking, I need a bit more information..." (natural language)
     INCORRECT: Calling transfer_to_agent or booking_sequential_agent
     
-    Example 2: Intent is BOOKING_REQUEST, message is "I need pet sitting for Bella next weekend"
-    CORRECT: {{"should_invoke_workflow": false, "action": "collect_info", "collected_entities": {{"customer": {{}}, "pets": [{{"name": "Bella"}}], "booking": {{"dates": "next weekend"}}}}, "reasoning": "Collecting booking information. Waiting for pet sitter confirmation before executing workflow.", "message": "I've noted the booking details. Waiting for pet sitter to confirm availability."}}
-    INCORRECT: "I can help you create a booking. First, I need a bit more information..." (natural language)
-    INCORRECT: Calling transfer_to_agent or booking_sequential_agent
+    Example 2: Intent is BOOKING_REQUEST, message is "Intent: BOOKING_REQUEST, Confidence: 0.90. Customer: I need pet sitting for Bella next weekend."
+    CORRECT OUTPUT (raw JSON, no markdown, no other text):
+    {{"should_invoke_workflow": false, "action": "collect_info", "collected_entities": {{"customer": {{}}, "pets": [{{"name": "Bella"}}], "booking": {{"dates": "next weekend"}}}}, "reasoning": "Collecting booking information. Waiting for pet sitter confirmation before executing workflow.", "message": "I've noted the booking details. Waiting for pet sitter to confirm availability."}}
+    
+    INCORRECT BEHAVIORS (any of these will cause failure):
+    ❌ "I can help you create a booking. First, I need a bit more information..." (natural language)
+    ❌ Calling transfer_to_agent
+    ❌ Invoking booking_sequential_agent
+    ❌ Calling get_services tool
+    ❌ Any text before or after the JSON
+    ❌ Wrapping JSON in markdown code blocks
     
     Example 3: Intent is PET_SITTER_CONFIRMATION, message is "Yes, I'm available for those dates!"
     CORRECT: First output {{"should_invoke_workflow": true, "action": "invoke_workflow", ...}}, then invoke booking_sequential_agent
     
     The verification flags (customer_verified, pets_verified, booking_id) will be used by downstream agents to skip redundant API calls.
+    
+    **🚨 FINAL REMINDER - READ BEFORE RESPONDING 🚨:**
+    
+    If intent is BOOKING_REQUEST, BOOKING_DETAILS, SERVICE_CONFIRMATION, or CASUAL_CONVERSATION:
+    - Your response MUST be JSON ONLY
+    - Your response MUST start with {{ and end with }}
+    - Your response MUST NOT contain any text before or after the JSON
+    - Your response MUST NOT call transfer_to_agent
+    - Your response MUST NOT invoke booking_sequential_agent
+    - Your response MUST NOT call any tools
+    - Your response MUST NOT output natural language
+    - If you see booking_sequential_agent available, IGNORE IT - you are in PATH A, do NOT use it
+    
+    Example CORRECT response for BOOKING_REQUEST:
+    {{"should_invoke_workflow": false, "action": "collect_info", "collected_entities": {{"customer": {{}}, "pets": [{{"name": "Bella"}}], "booking": {{"dates": "next weekend"}}}}, "reasoning": "Collecting booking information. Waiting for pet sitter confirmation before executing workflow.", "message": "I've noted the booking details. Waiting for pet sitter to confirm availability."}}
+    
+    Example INCORRECT (will cause test failure):
+    - Any text before or after JSON
+    - Calling transfer_to_agent
+    - Invoking booking_sequential_agent
+    - Calling any tools
+    - Natural language error messages
     
     Current date: {current_date}
     """
