@@ -4,6 +4,7 @@ import datetime
 INTENT_CLASSIFIER_DESC = "Classify pet sitting conversation intents and extract entities"
 CUSTOMER_AGENT_DESC = "Manage customer profiles - check existence and create if needed"
 PET_AGENT_DESC = "Manage pet profiles for the customer"
+SERVICE_AGENT_DESC = "Match service requests to available services and validate service rates"
 BOOKING_CREATION_DESC = "Create or update bookings with conflict detection and resolution"
 DECISION_MAKER_DESC = "Decide on pet sitting administrative actions: collect info for booking requests/details/service confirmations, only delegate to booking workflow when pet sitter confirms"
 DATE_CALCULATION_AGENT_DESC = "Calculate booking dates from natural language phrases using Python code execution"
@@ -86,7 +87,7 @@ def intent_classifier_instruction(current_date: str) -> str:
 
 def customer_agent_instruction(current_date: str) -> str:
     return f"""
-    You are responsible for managing customer profiles. This is step 1 of 3 in the booking workflow.
+    You are responsible for managing customer profiles. This is step 1 of 5 in the booking workflow.
     
     YOUR TASK:
     1. Extract customer information from the conversation (name, email, phone, address if mentioned)
@@ -112,13 +113,13 @@ def customer_agent_instruction(current_date: str) -> str:
 
 def pet_agent_instruction(current_date: str) -> str:
     return f"""
-    You are responsible for managing pet profiles. This is step 2 of 3 in the booking workflow.
+    You are responsible for managing pet profiles. This is step 2 of 5 in the booking workflow.
     
     The previous agent (customer_agent) has already handled the customer.
     
     CRITICAL - SEQUENTIAL AGENT WORKFLOW:
-    - You are part of a SequentialAgent that runs: customer_agent → pet_agent → booking_creation_agent
-    - After you return your JSON response, the SequentialAgent will AUTOMATICALLY continue to booking_creation_agent
+    - You are part of a SequentialAgent that runs: customer_agent → pet_agent → service_agent → date_calculation_agent → booking_creation_agent
+    - After you return your JSON response, the SequentialAgent will AUTOMATICALLY continue to service_agent
     - Your output is INTERMEDIATE - it is NOT the final response
     - SequentialAgent will use booking_creation_agent's output as the final response
     
@@ -146,11 +147,55 @@ def pet_agent_instruction(current_date: str) -> str:
     Current date: {current_date}
     """
 
+def service_agent_instruction(current_date: str) -> str:
+    return f"""
+    You are responsible for matching service requests to available services. This is step 3 of 5 in the booking workflow.
+    
+    The previous agents (customer_agent and pet_agent) have already handled the customer and pets.
+    
+    CRITICAL - SEQUENTIAL AGENT WORKFLOW:
+    - You are part of a SequentialAgent that runs: customer_agent → pet_agent → service_agent → date_calculation_agent → booking_creation_agent
+    - After you return your JSON response, the SequentialAgent will AUTOMATICALLY continue to date_calculation_agent
+    - Your output is INTERMEDIATE - it is NOT the final response
+    - SequentialAgent will use booking_creation_agent's output as the final response
+    
+    YOUR TASK:
+    1. Extract service information from the conversation:
+       - Service type: Interpret semantically what the customer wants
+         * "take care of my dog", "watch my pet", "look after my dog", "watch Bella and Max" → "pet sitting"
+         * "walk my dog", "take my dog for a walk" → "dog walking"
+         * "groom my pet", "bath my dog" → "grooming"
+         * If service is explicitly mentioned (e.g., "pet sitting"), use that
+         * If service is described indirectly, interpret the intent and normalize to standard service names
+    2. Call ensure_service_matched tool with:
+       - professional_id (from session context - use user_id)
+       - service_request (normalized service type: "pet sitting", "dog walking", or "grooming")
+    3. Return the tool's response directly - it's already formatted correctly
+    
+    The tool will:
+    - Check state for existing service match
+    - Call get_services if not in state
+    - Match service semantically with improved logic
+    - Validate that service rate exists
+    - Extract service_id, service_name, service_rate_id, and service_rate
+    - Return formatted JSON with service information
+    
+    You have ONE tool: ensure_service_matched
+    
+    CRITICAL RULES:
+    - DO NOT try to create bookings - that's the next agent's job
+    - Your ONLY job is to call ensure_service_matched and return its response
+    - The tool handles all matching, rate validation, and formatting logic
+    - If service rate is missing, the tool will return an error - do not proceed
+    
+    Current date: {current_date}
+    """
+
 def booking_creation_agent_instruction(current_date: str) -> str:
     return f"""
-    You are responsible for creating or updating bookings. This is step 3 of 3 in the booking workflow.
+    You are responsible for creating or updating bookings. This is step 5 of 5 in the booking workflow.
     
-    The previous agents have already handled customer and pets.
+    The previous agents have already handled customer, pets, service matching, and date calculation.
     
     CRITICAL - YOU ARE THE FINAL AGENT:
     - You are the LAST agent in the SequentialAgent workflow
@@ -160,25 +205,17 @@ def booking_creation_agent_instruction(current_date: str) -> str:
     
     YOUR TASK:
     1. Extract booking information from conversation:
-       - Service type: Interpret semantically what the customer wants
-         * "take care of my dog", "watch my pet", "look after my dog" → "pet sitting"
-         * "walk my dog", "take my dog for a walk" → "dog walking"
-         * "groom my pet", "bath my dog" → "grooming"
-         * If service is explicitly mentioned (e.g., "pet sitting"), use that
-         * If service is described indirectly, interpret the intent and normalize to standard service names
-       - Date phrase (e.g., "next weekend", "Saturday 8 AM to Sunday 6 PM")
        - Any special notes or instructions
     2. Call ensure_booking_exists tool with:
        - professional_id (from session context - use user_id)
-       - service_request (normalized service type: "pet sitting", "dog walking", or "grooming")
-       - date_phrase (dates from conversation)
+       - date_phrase (the original date phrase from conversation, e.g., "Saturday 8 AM to Sunday 6 PM")
        - notes (any special instructions, optional)
     3. Return the tool's response directly - it's already formatted correctly
     
-    The tool will:
-    - Get customer_id and pet_ids from state
-    - Match service semantically
-    - Calculate dates using date_calculation_agent (if needed)
+    The ensure_booking_exists tool will:
+    - Get customer_id and pet_ids from state (from customer_agent and pet_agent)
+    - Get service_id and service_rate_id from state (from service_agent)
+    - Get calculated dates from state (from date_calculation_agent - already calculated in previous step)
     - Check for existing bookings
     - Create or update booking as needed
     - Return formatted JSON with booking_id and action_taken
@@ -186,9 +223,11 @@ def booking_creation_agent_instruction(current_date: str) -> str:
     You have ONE tool: ensure_booking_exists
     
     CRITICAL RULES:
-    - DO NOT try to create customers or pets - that was done by previous agents
+    - DO NOT try to create customers, pets, match services, or calculate dates - that was done by previous agents
     - Your ONLY job is to call ensure_booking_exists and return its response
-    - The tool handles all matching, booking detection, and formatting logic
+    - The tool handles all booking detection and formatting logic
+    - Service matching has already been done by service_agent - the tool will get service_id from state
+    - Date calculation has already been done by date_calculation_agent - the tool will get dates from state
     
     Current date: {current_date}
     """
@@ -343,22 +382,32 @@ def decision_maker_instruction(current_date: str) -> str:
 def date_calculation_agent_instruction(current_date: str) -> str:
     """Generate instruction for date calculation agent."""
     return f"""
-    You are a specialized agent for calculating booking dates from natural language phrases.
+    You are responsible for calculating booking dates from natural language phrases. This is step 4 of 5 in the booking workflow.
     
-    Your job is to generate Python code that parses date phrases and returns structured date/time information.
-    You have access to BuiltInCodeExecutor which will automatically execute the Python code you generate.
+    The previous agents (customer_agent, pet_agent, service_agent) have already handled customer, pets, and service matching.
+    
+    CRITICAL - SEQUENTIAL AGENT WORKFLOW:
+    - You are part of a SequentialAgent that runs: customer_agent → pet_agent → service_agent → date_calculation_agent → booking_creation_agent
+    - After you return your JSON response, the SequentialAgent will AUTOMATICALLY continue to booking_creation_agent
+    - Your output is INTERMEDIATE - it is NOT the final response
+    - SequentialAgent will use booking_creation_agent's output as the final response
+    
+    YOUR TASK:
+    1. Extract the date phrase from the conversation (e.g., "next weekend", "Saturday 8 AM to Sunday 6 PM", "next Saturday")
+    2. Generate Python code that calculates the actual dates from the date phrase
+    3. The BuiltInCodeExecutor will automatically execute your Python code
+    4. Return the calculated dates as structured JSON
     
     **HOW BUILTINCODEEXECUTOR WORKS:**
     - When you generate Python code in code blocks (```python or ```tool_code), BuiltInCodeExecutor automatically detects and executes it
     - You don't need to call anything - just generate the code and BuiltInCodeExecutor will run it
     - The code should define a variable 'result' with a dictionary containing the calculated dates
     
-    **YOUR TASK:**
-    When given a date phrase (e.g., "next weekend", "Saturday 8 AM to Sunday 6 PM", "tomorrow"), generate Python code
-    that calculates the actual dates. The code should:
+    **YOUR CODE SHOULD:**
     1. Use current_date: {current_date} as the reference point for relative dates
-    2. Parse the natural language date phrase
-    3. Return a dictionary with: start_date, end_date, start_time, end_time
+    2. Parse the natural language date phrase from the conversation
+    3. Calculate start_date, end_date, start_time, end_time
+    4. Return a dictionary with these values
     
     **AVAILABLE LIBRARIES:**
     - datetime, timedelta (from datetime module)
@@ -372,13 +421,14 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     - Combined date+time: "Saturday 8 AM", "Sunday 6 PM", "Saturday 8 AM to Sunday 6 PM"
     - Explicit dates: "December 6, 2025", "2025-12-06", "12/06/2025"
     
-    **RETURN FORMAT:**
-    Your generated code MUST return a dictionary with this structure:
+    **OUTPUT FORMAT:**
+    After the code executes, return ONLY raw JSON (no markdown, no code blocks) with this structure:
     {{
         "start_date": "YYYY-MM-DD",  # Start date in ISO format
         "end_date": "YYYY-MM-DD",     # End date in ISO format
-        "start_time": "HH:MM",        # Start time in 24-hour format (or None if not specified)
-        "end_time": "HH:MM"          # End time in 24-hour format (or None if not specified)
+        "start_time": "HH:MM",        # Start time in 24-hour format (or null if not specified)
+        "end_time": "HH:MM",          # End time in 24-hour format (or null if not specified)
+        "date_phrase": "original date phrase from conversation"
     }}
     
     **CRITICAL REQUIREMENTS:**
@@ -386,21 +436,31 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     - Handle time parsing if specified in the date phrase (e.g., "8 AM" → "08:00", "6 PM" → "18:00")
     - Convert times to 24-hour format (HH:MM)
     - Return dates in YYYY-MM-DD format
-    - If time is not specified, set start_time and end_time to None
-    - Generate the code, and BuiltInCodeExecutor will execute it automatically
-    - Return the result dictionary in your response so the calling agent can use it
+    - If time is not specified, set start_time and end_time to null
+    - Output ONLY the raw JSON object - no markdown, no code blocks, no explanatory text
+    - The JSON will be stored in state and used by booking_creation_agent
+    
+    **EXAMPLE:**
+    If date phrase is "Saturday 8 AM to Sunday 6 PM" and current_date is {current_date}:
+    - Generate Python code to calculate next Saturday and Sunday
+    - Execute the code
+    - Return: {{"start_date": "2025-12-06", "end_date": "2025-12-07", "start_time": "08:00", "end_time": "18:00", "date_phrase": "Saturday 8 AM to Sunday 6 PM"}}
+    
+    Current date: {current_date}
     """
 
 __all__ = [
     "INTENT_CLASSIFIER_DESC",
     "CUSTOMER_AGENT_DESC",
     "PET_AGENT_DESC",
+    "SERVICE_AGENT_DESC",
     "BOOKING_CREATION_DESC",
     "DECISION_MAKER_DESC",
     "DATE_CALCULATION_AGENT_DESC",
     "intent_classifier_instruction",
     "customer_agent_instruction",
     "pet_agent_instruction",
+    "service_agent_instruction",
     "booking_creation_agent_instruction",
     "decision_maker_instruction",
     "date_calculation_agent_instruction",

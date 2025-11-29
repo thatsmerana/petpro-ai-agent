@@ -1,17 +1,15 @@
 from ..prompts import BOOKING_CREATION_DESC, booking_creation_agent_instruction
 from ..config import CURRENT_DATE, gemini_model
 from ..tools import ensure_booking_exists
-from .date_calculation_agent import date_calculation_agent
 from google.adk.agents import LlmAgent
-from google.adk.tools.agent_tool import AgentTool
 
 # Define the booking creation agent -- responsible for handling booking-related tasks.
 #
 # STATE-AWARE TOOL USAGE:
 # This agent uses ensure_booking_exists which handles all logic:
-# - Gets customer_id and pet_ids from state
-# - Matches service semantically
-# - Calculates dates using date_calculation_agent
+# - Gets customer_id and pet_ids from state (from customer_agent and pet_agent)
+# - Gets service_id and service_rate_id from state (from service_agent)
+# - Gets calculated dates from state (from date_calculation_agent)
 # - Checks for existing bookings
 # - Creates or updates booking as needed
 # - Returns formatted JSON with booking_id and action_taken
@@ -27,15 +25,13 @@ from google.adk.tools.agent_tool import AgentTool
 #   - source: "api" indicating where booking_id came from
 #
 # The output is available to the root orchestrator and can be used in subsequent conversation turns.
+# Note: date_calculation_agent is now a separate step in booking_sequential_agent, not a tool here.
 booking_creation_agent = LlmAgent(
     name="booking_creation_agent",
     model=gemini_model(),
     description=BOOKING_CREATION_DESC,
     instruction=booking_creation_agent_instruction(CURRENT_DATE),
-    tools=[
-        ensure_booking_exists,
-        AgentTool(agent=date_calculation_agent)  # Date calculation agent with BuiltInCodeExecutor
-    ],
+    tools=[ensure_booking_exists],
     output_key="booking_result"
 )
 

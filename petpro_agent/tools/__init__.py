@@ -10,6 +10,7 @@ from .tools import (
     # State-aware wrapper tools
     ensure_customer_exists,
     ensure_pets_exist,
+    ensure_service_matched,
     ensure_booking_exists,
     match_service,
 )
@@ -25,6 +26,7 @@ __all__ = [
     # State-aware wrapper tools
     "ensure_customer_exists",
     "ensure_pets_exist",
+    "ensure_service_matched",
     "ensure_booking_exists",
     "match_service",
 ]

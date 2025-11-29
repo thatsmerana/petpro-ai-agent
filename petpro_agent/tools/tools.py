@@ -741,60 +741,84 @@ def match_pet(pets: List[Dict[str, Any]], pet_name: str) -> Optional[Dict[str, A
 
 
 def match_service_semantic(services: List[Dict[str, Any]], service_request: str) -> Optional[Dict[str, Any]]:
-    """Semantically match service request to available services."""
+    """Semantically match service request to available services with improved logic to prevent false matches."""
     if not services or not service_request:
         return None
     
-    service_request_lower = service_request.lower()
+    service_request_lower = service_request.lower().strip()
     
-    # Keywords for semantic matching - expanded to handle natural language variations
+    # Keywords for semantic matching - prioritized and more specific to avoid overlap
+    # Higher priority keywords come first in each list
     keywords = {
         "pet sitting": [
             "pet sitting", "pet sitter", "sitting", "overnight", "overnight care",
-            "take care", "take care of", "watch", "watch my", "look after", "look after my",
+            "watch", "watch my", "look after", "look after my",
             "care for", "care for my", "pet care", "dog sitting", "cat sitting",
             "babysit", "babysitting", "pet babysitting", "stay with", "stay with my",
             "house sit", "house sitting", "pet house sitting"
         ],
         "dog walking": [
-            "dog walking", "dog walker", "walking", "walk", "walk my dog",
+            "dog walking", "dog walker", "walk", "walk my dog",
             "take my dog for a walk", "dog walk", "take dog out", "walk the dog",
             "daily walk", "regular walk"
         ],
         "grooming": [
-            "grooming", "groom", "bath", "trim", "bathe", "bathe my", "wash",
+            "grooming", "groom", "bath", "bathe", "bathe my", "wash",
             "wash my", "pet grooming", "dog grooming", "cat grooming", "nail trim",
-            "nail clipping", "haircut", "hair cut"
+            "nail clipping", "haircut", "hair cut", "trim"
         ]
     }
     
-    # Find matching keywords
-    matched_keywords = []
-    for key, values in keywords.items():
-        if any(kw in service_request_lower for kw in values):
-            matched_keywords.append(key)
+    # Score services based on match quality (higher score = better match)
+    scored_services = []
     
-    # Try to match services
     for service in services:
         if not isinstance(service, dict):
             continue
         
-        service_name = service.get("name", "").lower()
+        service_name = service.get("name", "").lower().strip()
+        score = 0
         
-        # Exact match
-        if service_request_lower in service_name or service_name in service_request_lower:
-            return service
+        # Priority 1: Exact match (highest priority)
+        if service_request_lower == service_name:
+            score = 1000
+        elif service_request_lower in service_name or service_name in service_request_lower:
+            score = 900
         
-        # Semantic match using keywords
-        for keyword in matched_keywords:
-            if keyword in service_name:
-                return service
+        # Priority 2: Semantic keyword match (check each service type)
+        for service_type, keyword_list in keywords.items():
+            # Check if request contains keywords for this service type
+            request_has_keywords = any(kw in service_request_lower for kw in keyword_list)
+            # Check if service name contains the service type
+            service_has_type = service_type in service_name
+            
+            if request_has_keywords and service_has_type:
+                # Find the highest priority keyword that matches
+                for idx, kw in enumerate(keyword_list):
+                    if kw in service_request_lower:
+                        # Higher priority keywords (earlier in list) get higher scores
+                        priority_score = (len(keyword_list) - idx) * 10
+                        score = max(score, 500 + priority_score)
+                        break
         
-        # Partial match
-        service_words = set(service_name.split())
-        request_words = set(service_request_lower.split())
-        if service_words.intersection(request_words):
-            return service
+        # Priority 3: Word overlap (lower priority, only if no better match)
+        if score < 500:
+            service_words = set(service_name.split())
+            request_words = set(service_request_lower.split())
+            common_words = service_words.intersection(request_words)
+            # Remove common stop words that don't help matching
+            stop_words = {"pet", "my", "the", "a", "an", "for", "of", "with"}
+            meaningful_common = common_words - stop_words
+            if meaningful_common:
+                score = max(score, len(meaningful_common) * 10)
+        
+        if score > 0:
+            scored_services.append((score, service))
+    
+    # Return the highest scoring service
+    if scored_services:
+        scored_services.sort(key=lambda x: x[0], reverse=True)
+        return scored_services[0][1]
     
     return None
 
@@ -820,6 +844,20 @@ def format_pet_result(customer_id: str, professional_id: str, pet_ids: List[str]
         "pet_ids": pet_ids,
         "pet_names": pet_names,
         "pet_species": pet_species,
+        "status": status,
+        "source": source,
+        "message": message
+    })
+
+
+def format_service_result(service_id: str, professional_id: str, service_name: str, service_rate_id: Optional[str], service_rate: Optional[float], status: str, source: str = "api", message: str = "") -> str:
+    """Format service data into agent output JSON."""
+    return json.dumps({
+        "service_id": service_id,
+        "professional_id": professional_id,
+        "service_name": service_name,
+        "service_rate_id": service_rate_id,
+        "service_rate": service_rate,
         "status": status,
         "source": source,
         "message": message
@@ -1096,6 +1134,7 @@ async def match_service(
         return json.dumps({
             "matched_service_id": None,
             "service_name": None,
+            "service_rate_id": None,
             "service_rate": None,
             "available_services": [],
             "message": "No services available"
@@ -1105,13 +1144,22 @@ async def match_service(
     matched = match_service_semantic(services, service_request)
     
     if matched:
+        # Extract service rate and service rate ID
         service_rate = matched.get("amount")
-        if service_rate is None and "serviceRate" in matched:
-            service_rate = matched["serviceRate"].get("amount") if isinstance(matched["serviceRate"], dict) else None
+        service_rate_id = None
+        
+        if "serviceRate" in matched and isinstance(matched["serviceRate"], dict):
+            service_rate_obj = matched["serviceRate"]
+            # Extract service rate ID (required for booking creation)
+            service_rate_id = service_rate_obj.get("id")
+            # Extract amount if not already found
+            if service_rate is None:
+                service_rate = service_rate_obj.get("amount")
         
         return json.dumps({
             "matched_service_id": matched.get("id"),
             "service_name": matched.get("name"),
+            "service_rate_id": service_rate_id,
             "service_rate": service_rate,
             "available_services": [s.get("name") for s in services if isinstance(s, dict) and s.get("name")],
             "message": f"Matched service: {matched.get('name')}"
@@ -1121,27 +1169,152 @@ async def match_service(
     return json.dumps({
         "matched_service_id": None,
         "service_name": None,
+        "service_rate_id": None,
         "service_rate": None,
         "available_services": [s.get("name") for s in services if isinstance(s, dict) and s.get("name")],
         "message": f"No matching service found for: {service_request}"
     })
 
 
-async def ensure_booking_exists(
+async def ensure_service_matched(
     tool_context: ToolContext,
     professional_id: str,
-    service_request: str,
-    date_phrase: str,
-    notes: Optional[str] = None
+    service_request: str
 ) -> str:
-    """Ensure booking exists. Gets customer_id, pet_ids from state, matches service, calculates dates, creates/updates booking.
+    """Ensure service is matched. Checks state first, then matches service semantically and validates rate.
     
     Args:
         tool_context: ToolContext providing access to session state
         professional_id: ID of the pet professional
-        service_request: Service type requested (e.g., "pet sitting")
+        service_request: Service type requested (e.g., "pet sitting", "dog walking")
+    
+    Returns:
+        JSON string with formatted service result ready for agent output
+    """
+    try:
+        state = tool_context.state if tool_context and hasattr(tool_context, 'state') else {}
+        
+        # Check state first for existing service match
+        service_id = None
+        service_name = None
+        service_rate_id = None
+        service_rate = None
+        source = "state"
+        
+        if "tool_results" in state and "service_result" in state["tool_results"]:
+            service_extracted = state["tool_results"]["service_result"].get("extracted", {})
+            if service_extracted.get("service_id") and service_extracted.get("service_request") == service_request:
+                service_id = service_extracted.get("service_id")
+                service_name = service_extracted.get("service_name")
+                service_rate_id = service_extracted.get("service_rate_id")
+                service_rate = service_extracted.get("service_rate")
+                return format_service_result(
+                    service_id=service_id,
+                    professional_id=professional_id,
+                    service_name=service_name,
+                    service_rate_id=service_rate_id,
+                    service_rate=service_rate,
+                    status="found",
+                    source=source,
+                    message=f"Service matched from state: {service_name}"
+                )
+        
+        # If not in state, match service
+        source = "api"
+        match_result_json = await match_service(tool_context, professional_id, service_request)
+        match_result = json.loads(match_result_json)
+        
+        service_id = match_result.get("matched_service_id")
+        service_name = match_result.get("service_name")
+        service_rate_id = match_result.get("service_rate_id")
+        service_rate = match_result.get("service_rate")
+        
+        if not service_id:
+            return format_service_result(
+                service_id=None,
+                professional_id=professional_id,
+                service_name=None,
+                service_rate_id=None,
+                service_rate=None,
+                status="not_found",
+                source=source,
+                message=f"No matching service found for: {service_request}. Available services: {', '.join(match_result.get('available_services', []))}"
+            )
+        
+        # Validate that service rate exists
+        if not service_rate_id:
+            return format_service_result(
+                service_id=service_id,
+                professional_id=professional_id,
+                service_name=service_name,
+                service_rate_id=None,
+                service_rate=service_rate,
+                status="rate_missing",
+                source=source,
+                message=f"Service '{service_name}' matched but service rate is not configured. Please configure service rate before creating booking."
+            )
+        
+        # Store in state
+        if tool_context and hasattr(tool_context, 'state'):
+            state = tool_context.state
+            if "tool_results" not in state:
+                state["tool_results"] = {}
+            state["tool_results"]["service_result"] = {
+                "extracted": {
+                    "service_id": service_id,
+                    "service_name": service_name,
+                    "service_rate_id": service_rate_id,
+                    "service_rate": service_rate,
+                    "service_request": service_request
+                },
+                "timestamp": time.time()
+            }
+        
+        return format_service_result(
+            service_id=service_id,
+            professional_id=professional_id,
+            service_name=service_name,
+            service_rate_id=service_rate_id,
+            service_rate=service_rate,
+            status="matched",
+            source=source,
+            message=f"Service matched successfully: {service_name}"
+        )
+        
+    except Exception as e:
+        return format_service_result(
+            service_id=None,
+            professional_id=professional_id,
+            service_name=None,
+            service_rate_id=None,
+            service_rate=None,
+            status="error",
+            source="api",
+            message=f"Error matching service: {str(e)}"
+        )
+
+
+async def ensure_booking_exists(
+    tool_context: ToolContext,
+    professional_id: str,
+    date_phrase: str,
+    notes: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
+) -> str:
+    """Ensure booking exists. Gets customer_id, pet_ids, and service info from state, calculates dates, creates/updates booking.
+    
+    Args:
+        tool_context: ToolContext providing access to session state
+        professional_id: ID of the pet professional
         date_phrase: Date phrase from conversation (e.g., "next weekend", "Saturday 8 AM to Sunday 6 PM")
         notes: Optional booking notes
+        start_date: Optional calculated start date (YYYY-MM-DD) from date_calculation_agent
+        end_date: Optional calculated end date (YYYY-MM-DD) from date_calculation_agent
+        start_time: Optional calculated start time (HH:MM) from date_calculation_agent
+        end_time: Optional calculated end time (HH:MM) from date_calculation_agent
     
     Returns:
         JSON string with formatted booking result ready for agent output
@@ -1175,11 +1348,10 @@ async def ensure_booking_exists(
                 "customer_id": customer_id,
                 "professional_id": professional_id_from_state,
                 "pet_ids": pet_ids,
-                "requested_service_type": service_request,
                 "matched_service_id": None,
                 "service_name": None,
+                "service_rate_id": None,
                 "service_rate": None,
-                "available_services": [],
                 "start_date": None,
                 "end_date": None,
                 "start_time": None,
@@ -1194,24 +1366,28 @@ async def ensure_booking_exists(
                 "message": "Customer ID or pet IDs not found in state. Ensure customer_agent and pet_agent run first."
             })
         
-        # Match service
-        service_result_json = await match_service(tool_context, professional_id, service_request)
-        service_result = json.loads(service_result_json)
-        matched_service_id = service_result.get("matched_service_id")
-        service_name = service_result.get("service_name")
-        service_rate = service_result.get("service_rate")
-        available_services = service_result.get("available_services", [])
+        # Get service_id and service_rate_id from state (from service_agent)
+        matched_service_id = None
+        service_name = None
+        service_rate_id = None
+        service_rate = None
+        
+        if "tool_results" in state and "service_result" in state["tool_results"]:
+            service_extracted = state["tool_results"]["service_result"].get("extracted", {})
+            matched_service_id = service_extracted.get("service_id")
+            service_name = service_extracted.get("service_name")
+            service_rate_id = service_extracted.get("service_rate_id")
+            service_rate = service_extracted.get("service_rate")
         
         if not matched_service_id:
             return json.dumps({
                 "customer_id": customer_id,
                 "professional_id": professional_id_from_state,
                 "pet_ids": pet_ids,
-                "requested_service_type": service_request,
                 "matched_service_id": None,
                 "service_name": None,
+                "service_rate_id": None,
                 "service_rate": None,
-                "available_services": available_services,
                 "start_date": None,
                 "end_date": None,
                 "start_time": None,
@@ -1223,16 +1399,122 @@ async def ensure_booking_exists(
                 "booking_id": None,
                 "status": "insufficient_data",
                 "source": "api",
-                "message": f"No matching service found for: {service_request}"
+                "message": "Service ID not found in state. Ensure service_agent runs before booking_creation_agent."
             })
         
-        # Calculate dates - for now, we'll need to call date_calculation_agent
-        # This is a simplified version - in practice, you'd call the date_calculation_agent
-        # For now, we'll use placeholder dates
-        start_date = None
-        end_date = None
-        start_time = None
-        end_time = None
+        if not service_rate_id:
+            return json.dumps({
+                "customer_id": customer_id,
+                "professional_id": professional_id_from_state,
+                "pet_ids": pet_ids,
+                "matched_service_id": matched_service_id,
+                "service_name": service_name,
+                "service_rate_id": None,
+                "service_rate": service_rate,
+                "start_date": None,
+                "end_date": None,
+                "start_time": None,
+                "end_time": None,
+                "booking_id_from_history": None,
+                "existing_booking_found": "not_found",
+                "existing_booking_id": None,
+                "action_taken": "error",
+                "booking_id": None,
+                "status": "rate_missing",
+                "source": "api",
+                "message": f"Service '{service_name}' matched but service rate ID is missing. Service rate must be configured before creating booking."
+            })
+        
+        # Get calculated dates from state (from date_calculation_agent in booking_sequential_agent)
+        calculated_start_date = start_date
+        calculated_end_date = end_date
+        calculated_start_time = start_time
+        calculated_end_time = end_time
+        
+        # Check state for date_calculation_agent results
+        if "tool_results" in state:
+            tool_results = state["tool_results"]
+            # Look for date calculation results from date_calculation_agent output
+            # The date_calculation_agent outputs via output_key="date_result"
+            # Check conversation history or state for date_result
+            if "date_result" in tool_results:
+                date_result = tool_results["date_result"]
+                if isinstance(date_result, dict):
+                    calculated_start_date = date_result.get("start_date") or calculated_start_date
+                    calculated_end_date = date_result.get("end_date") or calculated_end_date
+                    calculated_start_time = date_result.get("start_time") or calculated_start_time
+                    calculated_end_time = date_result.get("end_time") or calculated_end_time
+                elif isinstance(date_result, str):
+                    # Try to parse JSON string
+                    try:
+                        date_data = json.loads(date_result)
+                        calculated_start_date = date_data.get("start_date") or calculated_start_date
+                        calculated_end_date = date_data.get("end_date") or calculated_end_date
+                        calculated_start_time = date_data.get("start_time") or calculated_start_time
+                        calculated_end_time = date_data.get("end_time") or calculated_end_time
+                    except:
+                        pass
+        
+        # If dates not provided and not in state, try to parse date_phrase directly as fallback
+        if not calculated_start_date and date_phrase:
+            # Try basic parsing for common patterns
+            try:
+                from datetime import datetime, timedelta
+                import re
+                
+                # Get current date from config
+                from ..config import CURRENT_DATE
+                current = datetime.strptime(CURRENT_DATE, "%Y-%m-%d")
+                
+                # Simple parsing for "next weekend", "next Saturday", etc.
+                date_phrase_lower = date_phrase.lower()
+                
+                # Parse "next weekend" or "next Saturday to Sunday"
+                if "next weekend" in date_phrase_lower or ("next saturday" in date_phrase_lower and "sunday" in date_phrase_lower):
+                    # Find next Saturday
+                    days_until_saturday = (5 - current.weekday()) % 7
+                    if days_until_saturday == 0:
+                        days_until_saturday = 7  # If today is Saturday, get next Saturday
+                    next_saturday = current + timedelta(days=days_until_saturday)
+                    next_sunday = next_saturday + timedelta(days=1)
+                    calculated_start_date = next_saturday.strftime("%Y-%m-%d")
+                    calculated_end_date = next_sunday.strftime("%Y-%m-%d")
+                    
+                    # Parse times if mentioned - look for "8 AM" and "6 PM" patterns
+                    time_matches = re.findall(r'(\d+)\s*(AM|PM)', date_phrase, re.IGNORECASE)
+                    if len(time_matches) >= 1:
+                        hour = int(time_matches[0][0])
+                        am_pm = time_matches[0][1].upper()
+                        if am_pm == "PM" and hour != 12:
+                            hour += 12
+                        elif am_pm == "AM" and hour == 12:
+                            hour = 0
+                        calculated_start_time = f"{hour:02d}:00"
+                    
+                    if len(time_matches) >= 2:
+                        hour = int(time_matches[1][0])
+                        am_pm = time_matches[1][1].upper()
+                        if am_pm == "PM" and hour != 12:
+                            hour += 12
+                        elif am_pm == "AM" and hour == 12:
+                            hour = 0
+                        calculated_end_time = f"{hour:02d}:00"
+            except Exception as e:
+                # If parsing fails, dates will remain None and we'll use placeholders
+                pass
+        
+        # Use calculated dates or fallback to placeholders
+        final_start_date = calculated_start_date
+        final_end_date = calculated_end_date
+        final_start_time = calculated_start_time
+        final_end_time = calculated_end_time
+        
+        # If still no dates, use placeholders as last resort (should not happen if date_calculation_agent was called)
+        if not final_start_date:
+            final_start_date = "2024-01-01"
+            final_end_date = "2024-01-01"
+            final_start_time = "00:00"
+            final_end_time = "23:59"
         
         # Check state for existing booking
         existing_booking_id = None
@@ -1269,13 +1551,13 @@ async def ensure_booking_exists(
                 
                 if existing_booking:
                     # Update booking with new dates if provided
-                    if start_date and end_date:
-                        existing_booking["startDate"] = start_date
-                        existing_booking["endDate"] = end_date
-                    if start_time:
-                        existing_booking["startTime"] = start_time
-                    if end_time:
-                        existing_booking["endTime"] = end_time
+                    if final_start_date and final_end_date:
+                        existing_booking["startDate"] = final_start_date
+                        existing_booking["endDate"] = final_end_date
+                    if final_start_time:
+                        existing_booking["startTime"] = final_start_time
+                    if final_end_time:
+                        existing_booking["endTime"] = final_end_time
                     if notes:
                         existing_booking["notes"] = notes
                     
@@ -1287,15 +1569,14 @@ async def ensure_booking_exists(
                             "customer_id": customer_id,
                             "professional_id": professional_id_from_state,
                             "pet_ids": pet_ids,
-                            "requested_service_type": service_request,
                             "matched_service_id": matched_service_id,
                             "service_name": service_name,
+                            "service_rate_id": service_rate_id,
                             "service_rate": service_rate,
-                            "available_services": available_services,
-                            "start_date": start_date or existing_booking.get("startDate"),
-                            "end_date": end_date or existing_booking.get("endDate"),
-                            "start_time": start_time or existing_booking.get("startTime"),
-                            "end_time": end_time or existing_booking.get("endTime"),
+                            "start_date": final_start_date or existing_booking.get("startDate"),
+                            "end_date": final_end_date or existing_booking.get("endDate"),
+                            "start_time": final_start_time or existing_booking.get("startTime"),
+                            "end_time": final_end_time or existing_booking.get("endTime"),
                             "booking_id_from_history": existing_booking_id,
                             "existing_booking_found": "found_via_api",
                             "existing_booking_id": existing_booking_id,
@@ -1310,11 +1591,12 @@ async def ensure_booking_exists(
         booking_data = {
             "clientId": customer_id,
             "serviceId": matched_service_id,
+            "serviceRateId": service_rate_id,
             "professionalId": professional_id_from_state,
-            "startDate": start_date or "2024-01-01",  # Placeholder - should come from date_calculation_agent
-            "endDate": end_date or "2024-01-01",
-            "startTime": start_time or "00:00",
-            "endTime": end_time or "23:59",
+            "startDate": final_start_date,
+            "endDate": final_end_date,
+            "startTime": final_start_time,
+            "endTime": final_end_time,
             "bookingPets": [{"petId": pid} for pid in pet_ids],
             "notes": notes or "",
             "extraPetFee": 0,
@@ -1330,11 +1612,10 @@ async def ensure_booking_exists(
                 "customer_id": customer_id,
                 "professional_id": professional_id_from_state,
                 "pet_ids": pet_ids,
-                "requested_service_type": service_request,
                 "matched_service_id": matched_service_id,
                 "service_name": service_name,
+                "service_rate_id": service_rate_id,
                 "service_rate": service_rate,
-                "available_services": available_services,
                 "start_date": booking.get("startDate"),
                 "end_date": booking.get("endDate"),
                 "start_time": booking.get("startTime"),
@@ -1353,11 +1634,10 @@ async def ensure_booking_exists(
             "customer_id": customer_id,
             "professional_id": professional_id_from_state,
             "pet_ids": pet_ids,
-            "requested_service_type": service_request,
             "matched_service_id": matched_service_id,
             "service_name": service_name,
+            "service_rate_id": service_rate_id,
             "service_rate": service_rate,
-            "available_services": available_services,
             "start_date": None,
             "end_date": None,
             "start_time": None,
@@ -1377,11 +1657,10 @@ async def ensure_booking_exists(
             "customer_id": None,
             "professional_id": professional_id,
             "pet_ids": [],
-            "requested_service_type": service_request,
             "matched_service_id": None,
             "service_name": None,
+            "service_rate_id": None,
             "service_rate": None,
-            "available_services": [],
             "start_date": None,
             "end_date": None,
             "start_time": None,
