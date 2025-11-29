@@ -1,75 +1,40 @@
 import asyncio
-import json
 import sys
 import os
 from typing import List, Dict
 from dotenv import load_dotenv
+import pytest
+import uuid
 
 # Add parent directory to path to allow imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Google ADK imports
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from google.genai.errors import ClientError
 
-from petpro_agent import root_agent
-from petpro_agent.utils import create_runner_with_logging
+from petpro_agent.config import APP_NAME, session_service, get_runner
 
 load_dotenv()
 
 
 class PetSitterAgentTester:
     def __init__(self):
-        # Set up ADK Session service
-        self.session_service = InMemorySessionService()
         self.session = None
-        self.runner = None
-        print("✅ PetSitterAgentTester initialized (awaiting setup).")
+        self.session_id = str(uuid.uuid4())  # Generate a unique session ID for this tester instance
 
     async def setup(self):
-        """Async setup method to create session and runner."""
-        app_name = "pet_sitter_test_session"
-        self.session = await self.session_service.create_session(
-            app_name=app_name,
+        """Async setup method to create session."""
+        self.session = await session_service.create_session(
+            app_name=APP_NAME,
             user_id="123e4567-e89b-12d3-a456-426614174001",
-            session_id="test_session"
+            session_id=self.session_id
         )
-
-        # Create runner with logging plugin enabled
-        self.runner = create_runner_with_logging(
-            agent=root_agent,
-            app_name=app_name,
-            session_service=self.session_service,
-            enable_logging=True
-        )
-        
-        # Fallback to standard Runner if helper function returns None
-        if self.runner is None:
-            self.runner = Runner(
-                agent=root_agent,
-                app_name=app_name,
-                session_service=self.session_service
-            )
-        
-        print("✅ Session and Runner created successfully with logging plugin.")
 
     async def cleanup(self):
         """Release resources to avoid unclosed aiohttp client session warnings."""
-        # Runner may expose async or sync close; handle both defensively
-        if self.runner:
-            close_method = getattr(self.runner, "close", None)
-            if callable(close_method):
-                try:
-                    result = close_method()
-                    if asyncio.iscoroutine(result):
-                        await result
-                except Exception as e:
-                    print(f"⚠️ Runner close encountered: {e}")
         # Session service cleanup if available
-        if self.session_service:
-            close_method = getattr(self.session_service, "close", None)
+        if session_service:
+            close_method = getattr(session_service, "close", None)
             if callable(close_method):
                 try:
                     result = close_method()
@@ -77,58 +42,9 @@ class PetSitterAgentTester:
                         await result
                 except Exception as e:
                     print(f"⚠️ SessionService close encountered: {e}")
-        print("✅ Cleanup completed.")
 
-    async def _run_once(self, content: types.Content):
-        """Execute a single agent run and return final response text."""
-        final_response = None
-        async for event in self.runner.run_async(
-            user_id="123e4567-e89b-12d3-a456-426614174001",
-            session_id="test_session",
-            new_message=content
-        ):
-            if hasattr(event, 'content') and event.content and event.content.parts:
-                event_text = event.content.parts[0].text
-                if event.is_final_response():
-                    final_response = event_text
-                else:
-                    try:
-                        event_data = json.loads(event_text)
-                        if event_data.get("new_entities"):
-                            print(f"📊 Extracted entities: {event_data['new_entities']}")
-                    except Exception:
-                        pass
-        return final_response
-
-    async def _extract_retry_delay(self, err: ClientError, default_seconds: int = 60) -> int:
-        """Parse retryDelay from ClientError details if present."""
-        try:
-            details = err.response_json.get('error', {}).get('details', [])
-            for detail in details:
-                if detail.get('@type') == 'type.googleapis.com/google.rpc.RetryInfo':
-                    delay_str = detail.get('retryDelay', '').strip()
-                    if delay_str.endswith('s'):
-                        return int(delay_str[:-1])
-                    return int(delay_str) if delay_str.isdigit() else default_seconds
-        except Exception:
-            pass
-        return default_seconds
-
-    async def _run_with_retry(self, content: types.Content, max_retries: int = 3):
-        """Run agent with automatic retry on 429 quota errors."""
-        for attempt in range(max_retries):
-            try:
-                return await self._run_once(content)
-            except ClientError as e:
-                if e.status_code == 429 and attempt < max_retries - 1:
-                    delay = await self._extract_retry_delay(e)
-                    print(f"⏳ Rate limit hit (attempt {attempt + 1}/{max_retries}). Waiting {delay}s before retrying...")
-                    await asyncio.sleep(delay)
-                    continue
-                print(f"❌ Aborting after attempt {attempt + 1}: {e}")
-                raise
-
-    async def process_conversation(self, conversation: List[Dict[str, str]]):
+    async def run_conversation(self, conversation: List[Dict[str, str]]):
+        """Run agent with conversation messages."""
         for msg in conversation:
             user_query = (
                 f"NEW MESSAGE: {msg['sender']}: {msg['message']}\n"
@@ -136,13 +52,13 @@ class PetSitterAgentTester:
             )
             content = types.Content(role='user', parts=[types.Part(text=user_query)])
 
-            print("\n💬 Processing conversation:")
-            final_response = await self._run_with_retry(content)
-
-            if final_response:
-                print(f"\n🎯 Agent Response: {final_response}")
-            else:
-                print(f"\n⚠️ No final response received")
+            async for event in get_runner().run_async(
+                user_id="123e4567-e89b-12d3-a456-426614174001",
+                session_id=self.session_id,
+                new_message=content
+            ):
+                if event.is_final_response() and hasattr(event, 'content') and event.content and event.content.parts:
+                    print(f"Agent Response: {event.content.parts[0].text}")
 
 
 SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
@@ -161,6 +77,29 @@ SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
     ]
 }
 
+@pytest.fixture
+async def agent_tester():
+    tester = PetSitterAgentTester()
+    await tester.setup()
+    yield tester
+    await tester.cleanup()
+
+@pytest.mark.asyncio
+async def test_complete_booking_scenario(agent_tester):
+    """Test the complete booking conversation scenario."""
+    conversation = SAMPLE_CONVERSATIONS["complete_booking"]
+    await agent_tester.run_conversation(conversation)
+    # Add assertions as needed (example: check session is not None)
+    assert agent_tester.session is not None
+
+@pytest.mark.asyncio
+async def test_agent_initialization():
+    tester = PetSitterAgentTester()
+    await tester.setup()
+    assert tester.session is not None
+    assert get_runner() is not None
+    await tester.cleanup()
+
 async def main():
     print("🐕 Pet Sitter AI Agent - Test Program")
     print("=" * 50)
@@ -177,7 +116,7 @@ async def main():
         
         for scenario_name, conversation in SAMPLE_CONVERSATIONS.items():
             print(f"📋 Running scenario: {scenario_name}")
-            await sitter_agent.process_conversation(conversation)
+            await sitter_agent.run_conversation(conversation)
             print("\n" + "=" * 50 + "\n")
     finally:
         await sitter_agent.cleanup()

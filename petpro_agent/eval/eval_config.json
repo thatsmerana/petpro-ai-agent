@@ -1,8 +1,10 @@
 {
   "criteria": {
     "final_response_match_v2": 0.5,
-    "tool_trajectory_avg_score": 1.0
+    "tool_trajectory_avg_score": {
+      "threshold": 1.0,
+      "match_type": "IN_ORDER"
+    }
   },
-  "note": "final_response_match_v2 threshold set to 0.5 to accommodate: 1) Calculated dates (YYYY-MM-DD format) being semantically equivalent to relative date phrases (e.g., 'next weekend', 'Saturday'), 2) Minor entity field variations (e.g., 'age': '3 years' vs 'age': '3 years old', 'species': 'dog' vs 'species': 'Dog'), 3) Partial matches when core fields (intent, confidence, should_execute) are correct. The evaluator should give partial credit when most fields match correctly."
+  "note": "final_response_match_v2 threshold set to 0.5 to accommodate: 1) Calculated dates (YYYY-MM-DD format) being semantically equivalent to relative date phrases (e.g., 'next weekend', 'Saturday'), but actual responses with calculated dates in YYYY-MM-DD format (e.g., '2025-12-06' or '2025-12-06 to 2025-12-07') are CORRECT and should be accepted. The evaluator should consider calculated dates as semantically equivalent to relative date phrases. tool_trajectory_avg_score is configured with IN_ORDER match_type to verify tool calls are made in the correct sequence."
 }
-

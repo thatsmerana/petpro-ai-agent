@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from google.genai import types
 from google.adk.models import Gemini
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 
 # Create logs directory if it doesn't exist
 logs_dir = Path("logs")
@@ -64,5 +66,44 @@ def gemini_model(name: str = "gemini-2.5-flash-lite"):
     """Return a Gemini model instance with shared retry options."""
     return Gemini(model=name, retry_options=RETRY_CONFIG)
 
-__all__ = ["CURRENT_DATE", "RETRY_CONFIG", "gemini_model"]
+# Application name for ADK Runner and Session
+APP_NAME = "pet_sitter_agent"
+
+# Initialize session service (singleton)
+session_service = InMemorySessionService()
+
+# Initialize runner (singleton, lazy initialization to avoid circular imports)
+def get_runner():
+    """Get or create the Runner instance with logging plugin."""
+    if not hasattr(get_runner, '_runner'):
+        from . import root_agent
+        from .utils import create_runner_with_logging
+        
+        runner = create_runner_with_logging(
+            agent=root_agent,
+            app_name=APP_NAME,
+            session_service=session_service,
+            enable_logging=True
+        )
+        
+        # Fallback to standard Runner if helper function returns None
+        if runner is None:
+            runner = Runner(
+                agent=root_agent,
+                app_name=APP_NAME,
+                session_service=session_service
+            )
+        
+        get_runner._runner = runner
+    
+    return get_runner._runner
+
+__all__ = [
+    "CURRENT_DATE", 
+    "RETRY_CONFIG", 
+    "gemini_model",
+    "APP_NAME",
+    "session_service",
+    "get_runner"
+]
 

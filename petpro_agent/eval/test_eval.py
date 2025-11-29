@@ -3,6 +3,8 @@ from google.adk.evaluation.agent_evaluator import AgentEvaluator
 from google.adk.evaluation.eval_config import EvalConfig, BaseCriterion
 import os
 import json
+from unittest.mock import AsyncMock, patch, MagicMock
+from typing import Dict, List, Any
 
 @pytest.mark.asyncio
 async def test_intent_classifier_agent_evaluation():
@@ -22,9 +24,19 @@ async def test_intent_classifier_agent_evaluation():
         config_data = json.load(f)
     
     # Create EvalConfig from the config file
+    # Handle both simple threshold values and dict configs (for match_type, etc.)
     criteria_dict = {}
-    for metric_name, threshold in config_data.get("criteria", {}).items():
-        criteria_dict[metric_name] = BaseCriterion(threshold=threshold)
+    for metric_name, criterion_config in config_data.get("criteria", {}).items():
+        if isinstance(criterion_config, dict):
+            threshold = criterion_config.get("threshold", 1.0)
+            # Pass additional config options (like match_type) to BaseCriterion
+            criteria_dict[metric_name] = BaseCriterion(
+                threshold=threshold,
+                **{k: v for k, v in criterion_config.items() if k != "threshold"}
+            )
+        else:
+            # Simple threshold value
+            criteria_dict[metric_name] = BaseCriterion(threshold=criterion_config)
     
     eval_config = EvalConfig(criteria=criteria_dict)
     
@@ -70,9 +82,19 @@ async def test_decision_maker_agent_evaluation():
             config_data = json.load(f)
         
         # Create EvalConfig from the config file
+        # Handle both simple threshold values and dict configs (for match_type, etc.)
         criteria_dict = {}
-        for metric_name, threshold in config_data.get("criteria", {}).items():
-            criteria_dict[metric_name] = BaseCriterion(threshold=threshold)
+        for metric_name, criterion_config in config_data.get("criteria", {}).items():
+            if isinstance(criterion_config, dict):
+                threshold = criterion_config.get("threshold", 1.0)
+                # Pass additional config options (like match_type) to BaseCriterion
+                criteria_dict[metric_name] = BaseCriterion(
+                    threshold=threshold,
+                    **{k: v for k, v in criterion_config.items() if k != "threshold"}
+                )
+            else:
+                # Simple threshold value
+                criteria_dict[metric_name] = BaseCriterion(threshold=criterion_config)
         
         eval_config = EvalConfig(criteria=criteria_dict)
         

@@ -7,6 +7,11 @@ from .tools import (
     get_bookings,
     create_booking,
     update_booking,
+    # State-aware wrapper tools
+    ensure_customer_exists,
+    ensure_pets_exist,
+    ensure_booking_exists,
+    match_service,
 )
 
 __all__ = [
@@ -17,4 +22,9 @@ __all__ = [
     "get_bookings",
     "create_booking",
     "update_booking",
+    # State-aware wrapper tools
+    "ensure_customer_exists",
+    "ensure_pets_exist",
+    "ensure_booking_exists",
+    "match_service",
 ]

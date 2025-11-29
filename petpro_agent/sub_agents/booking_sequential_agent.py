@@ -33,9 +33,11 @@ from .booking_creation_agent import booking_creation_agent
 # The SequentialAgent ensures that state is properly shared while maintaining execution order.
 booking_sequential_agent = SequentialAgent(
     name="booking_sequential_agent",
-    description="Execute complete booking workflow: customer → pets → booking creation in sequence with shared state",
+    description="Execute complete booking workflow: customer → pets → booking creation in sequence with shared state. MUST run all three agents: customer_agent, pet_agent, and booking_creation_agent. The final response MUST come from booking_creation_agent.",
     sub_agents=[customer_agent, pet_agent, booking_creation_agent]
 )
+
+agent = booking_sequential_agent
 
 __all__ = ["booking_sequential_agent"]
 
