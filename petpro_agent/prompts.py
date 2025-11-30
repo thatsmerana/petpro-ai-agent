@@ -393,7 +393,11 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     - SequentialAgent will use booking_creation_agent's output as the final response
     
     YOUR TASK:
-    1. Extract the date phrase from the conversation (e.g., "next weekend", "Saturday 8 AM to Sunday 6 PM", "next Saturday")
+    1. Extract the date phrase from the conversation AND conversation history
+       - Look at the full conversation history to understand context
+       - If "next weekend" was mentioned earlier, then "Saturday" and "Sunday" should be interpreted as "next Saturday" and "next Sunday"
+       - If "this weekend" was mentioned earlier, then "Saturday" and "Sunday" should be interpreted as "this Saturday" and "this Sunday"
+       - When a day name appears without "this" or "next", check conversation history to determine the correct interpretation
     2. Generate Python code that calculates the actual dates from the date phrase
     3. The BuiltInCodeExecutor will automatically execute your Python code
     4. Return the calculated dates as structured JSON
@@ -409,10 +413,59 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     3. Calculate start_date, end_date, start_time, end_time
     4. Return a dictionary with these values
     
+    **ROBUST DATE CALCULATION PATTERN:**
+    Use this pattern for calculating "next Saturday" and "next Sunday":
+    ```python
+    from datetime import datetime, timedelta
+    import re
+    
+    current_date = datetime(2025, 11, 29)  # Example: use actual current_date from instruction
+    date_phrase = "8 AM Saturday to 6 PM Sunday"  # Example: extract from conversation
+    
+    # Calculate next Saturday
+    # weekday() returns: Monday=0, Tuesday=1, ..., Saturday=5, Sunday=6
+    days_until_saturday = (5 - current_date.weekday() + 7) % 7
+    if days_until_saturday == 0:  # If today is Saturday, we want the *next* Saturday
+        days_until_saturday = 7
+    next_saturday = current_date + timedelta(days=days_until_saturday)
+    
+    # Next Sunday is always the day after next Saturday
+    next_sunday = next_saturday + timedelta(days=1)
+    
+    # Parse times from date_phrase (e.g., "8 AM" -> "08:00", "6 PM" -> "18:00")
+    def parse_time(time_str):
+        # Extract hour and AM/PM
+        match = re.search(r'(\d+)\s*(AM|PM)', time_str, re.IGNORECASE)
+        if match:
+            hour = int(match.group(1))
+            period = match.group(2).upper()
+            if period == 'PM' and hour != 12:
+                hour += 12
+            elif period == 'AM' and hour == 12:
+                hour = 0
+            return "{{:02d}}:00".format(hour)
+        return None
+    
+    # Extract times from date_phrase
+    start_time_str = re.search(r'(\d+\s*AM|\d+\s*PM)', date_phrase, re.IGNORECASE)
+    end_time_str = re.search(r'(\d+\s*AM|\d+\s*PM)', date_phrase.split(' to ')[-1] if ' to ' in date_phrase else date_phrase, re.IGNORECASE)
+    
+    start_time = parse_time(start_time_str.group(1)) if start_time_str else None
+    end_time = parse_time(end_time_str.group(1)) if end_time_str else None
+    
+    result = {{
+        "start_date": next_saturday.strftime('%Y-%m-%d'),
+        "end_date": next_sunday.strftime('%Y-%m-%d'),
+        "start_time": start_time,
+        "end_time": end_time,
+        "date_phrase": date_phrase
+    }}
+    ```
+    
     **AVAILABLE LIBRARIES:**
     - datetime, timedelta (from datetime module)
-    - dateparser (for natural language date parsing)
     - relativedelta (from dateutil.relativedelta for complex date calculations)
+    - Note: dateparser may not be available - use datetime and timedelta for reliable date calculations
     
     **DATE FORMATS YOU CAN HANDLE:**
     - Day names: "Saturday", "Sunday", "Monday", etc.
@@ -433,6 +486,10 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     
     **CRITICAL REQUIREMENTS:**
     - Always use current_date ({current_date}) as the reference point for relative dates
+    - **CRITICAL: Check conversation history for context when interpreting ambiguous date phrases**
+      - If conversation mentions "next weekend" earlier, then "Saturday" and "Sunday" refer to "next Saturday" and "next Sunday"
+      - If conversation mentions "this weekend" earlier, then "Saturday" and "Sunday" refer to "this Saturday" and "this Sunday"
+      - When day names appear without qualifiers, use conversation history to determine if they mean "this" or "next"
     - Handle time parsing if specified in the date phrase (e.g., "8 AM" → "08:00", "6 PM" → "18:00")
     - Convert times to 24-hour format (HH:MM)
     - Return dates in YYYY-MM-DD format
@@ -440,8 +497,24 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     - Output ONLY the raw JSON object - no markdown, no code blocks, no explanatory text
     - The JSON will be stored in state and used by booking_creation_agent
     
-    **EXAMPLE:**
-    If date phrase is "Saturday 8 AM to Sunday 6 PM" and current_date is {current_date}:
+    **EXAMPLES:**
+    
+    Example 1: If conversation mentions "next weekend" earlier, and then "Saturday 8 AM to Sunday 6 PM":
+    - Check conversation history: "next weekend" was mentioned
+    - Interpret "Saturday" as "next Saturday" and "Sunday" as "next Sunday"
+    - Generate Python code to calculate next Saturday and Sunday
+    - Execute the code
+    - Return: {{"start_date": "2025-12-06", "end_date": "2025-12-07", "start_time": "08:00", "end_time": "18:00", "date_phrase": "Saturday 8 AM to Sunday 6 PM"}}
+    
+    Example 2: If conversation mentions "this weekend" earlier, and then "Saturday 8 AM to Sunday 6 PM":
+    - Check conversation history: "this weekend" was mentioned
+    - Interpret "Saturday" as "this Saturday" and "Sunday" as "this Sunday"
+    - Generate Python code to calculate this Saturday and Sunday
+    - Execute the code
+    - Return: {{"start_date": "2025-11-29", "end_date": "2025-11-30", "start_time": "08:00", "end_time": "18:00", "date_phrase": "Saturday 8 AM to Sunday 6 PM"}}
+    
+    Example 3: If no context in conversation history and current_date is {current_date}:
+    - Default to "next Saturday" and "next Sunday" for future dates
     - Generate Python code to calculate next Saturday and Sunday
     - Execute the code
     - Return: {{"start_date": "2025-12-06", "end_date": "2025-12-07", "start_time": "08:00", "end_time": "18:00", "date_phrase": "Saturday 8 AM to Sunday 6 PM"}}

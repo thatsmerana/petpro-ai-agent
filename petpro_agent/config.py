@@ -10,6 +10,22 @@ from google.adk.models import Gemini
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
+# Import App and EventsCompactionConfig for context compaction
+try:
+    from google.adk.apps.app import App, EventsCompactionConfig
+    _APP_AVAILABLE = True
+except ImportError:
+    # Fallback for older ADK versions
+    try:
+        from google.adk.apps import App, EventsCompactionConfig
+        _APP_AVAILABLE = True
+    except ImportError:
+        App = None
+        EventsCompactionConfig = None
+        _APP_AVAILABLE = False
+        import logging
+        logging.warning("App and EventsCompactionConfig not available. Context compaction will be disabled.")
+
 # Create logs directory if it doesn't exist
 logs_dir = Path("logs")
 logs_dir.mkdir(exist_ok=True)
@@ -72,27 +88,79 @@ APP_NAME = "pet_sitter_agent"
 # Initialize session service (singleton)
 session_service = InMemorySessionService()
 
+# Initialize app with context compaction (singleton, lazy initialization to avoid circular imports)
+def get_app():
+    """Get or create the App instance with events compaction enabled."""
+    if not hasattr(get_app, '_app'):
+        from . import root_agent
+        
+        if _APP_AVAILABLE and App and EventsCompactionConfig:
+            # Configure events compaction: compact after every 5 conversations
+            compaction_config = EventsCompactionConfig(
+                compaction_interval=5,  # Trigger compaction every 5 conversations
+                overlap_size=1,  # Keep 1 previous turn for context
+            )
+            
+            app = App(
+                name=APP_NAME,
+                root_agent=root_agent,
+                events_compaction_config=compaction_config,
+            )
+            print("✅ App created with Events Compaction enabled (interval=5, overlap=1)")
+        else:
+            # Fallback: create App without compaction if not available
+            if App:
+                app = App(
+                    name=APP_NAME,
+                    root_agent=root_agent,
+                )
+                print("⚠️ App created without Events Compaction (EventsCompactionConfig not available)")
+            else:
+                app = None
+                print("⚠️ App class not available, will use Runner directly")
+        
+        get_app._app = app
+    
+    return get_app._app
+
 # Initialize runner (singleton, lazy initialization to avoid circular imports)
 def get_runner():
-    """Get or create the Runner instance with logging plugin."""
+    """Get or create the Runner instance with logging plugin and context compaction."""
     if not hasattr(get_runner, '_runner'):
-        from . import root_agent
         from .utils import create_runner_with_logging
         
-        runner = create_runner_with_logging(
-            agent=root_agent,
-            app_name=APP_NAME,
-            session_service=session_service,
-            enable_logging=True
-        )
+        app = get_app()
         
-        # Fallback to standard Runner if helper function returns None
-        if runner is None:
-            runner = Runner(
+        if app is not None:
+            # Use App-based Runner with compaction
+            runner = create_runner_with_logging(
+                app=app,
+                session_service=session_service,
+                enable_logging=True
+            )
+            
+            # Fallback to standard Runner with app
+            if runner is None:
+                runner = Runner(
+                    app=app,
+                    session_service=session_service
+                )
+        else:
+            # Fallback to old-style Runner (if App not available)
+            from . import root_agent
+            runner = create_runner_with_logging(
                 agent=root_agent,
                 app_name=APP_NAME,
-                session_service=session_service
+                session_service=session_service,
+                enable_logging=True
             )
+            
+            if runner is None:
+                runner = Runner(
+                    agent=root_agent,
+                    app_name=APP_NAME,
+                    session_service=session_service
+                )
         
         get_runner._runner = runner
     
@@ -104,6 +172,7 @@ __all__ = [
     "gemini_model",
     "APP_NAME",
     "session_service",
+    "get_app",
     "get_runner"
 ]
 

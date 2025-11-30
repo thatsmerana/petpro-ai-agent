@@ -265,9 +265,10 @@ def validate_agent_output(output_key: str, output_text: str, expected_fields: Li
 
 
 def create_runner_with_logging(
-    agent,
-    app_name: str,
-    session_service: SessionService,
+    app=None,
+    agent=None,
+    app_name: str = None,
+    session_service: SessionService = None,
     enable_logging: bool = True
 ) -> Optional[Runner]:
     """
@@ -277,9 +278,12 @@ def create_runner_with_logging(
     registered for observability. The logging plugin will capture agent lifecycle
     events, model interactions, and tool calls.
     
+    Supports both App-based (new) and agent-based (legacy) Runner creation.
+    
     Args:
-        agent: The agent instance to run
-        app_name: Application name for the runner
+        app: App instance (new style, preferred)
+        agent: The agent instance to run (legacy style, used if app is None)
+        app_name: Application name for the runner (legacy style, used if app is None)
         session_service: Session service instance
         enable_logging: Whether to enable logging plugin (default: True)
         
@@ -292,22 +296,39 @@ def create_runner_with_logging(
     try:
         from .logging_plugin import logging_plugin
         
+        plugins = [logging_plugin] if enable_logging else []
+        
         # Try to create runner with plugins parameter
         try:
-            runner = Runner(
-                agent=agent,
-                app_name=app_name,
-                session_service=session_service,
-                plugins=[logging_plugin] if enable_logging else []
-            )
+            if app is not None:
+                # New style: use App
+                runner = Runner(
+                    app=app,
+                    session_service=session_service,
+                    plugins=plugins
+                )
+            else:
+                # Legacy style: use agent and app_name
+                runner = Runner(
+                    agent=agent,
+                    app_name=app_name,
+                    session_service=session_service,
+                    plugins=plugins
+                )
             return runner
         except TypeError:
             # If plugins parameter not supported, create runner and register plugin
-            runner = Runner(
-                agent=agent,
-                app_name=app_name,
-                session_service=session_service
-            )
+            if app is not None:
+                runner = Runner(
+                    app=app,
+                    session_service=session_service
+                )
+            else:
+                runner = Runner(
+                    agent=agent,
+                    app_name=app_name,
+                    session_service=session_service
+                )
             
             if enable_logging:
                 # Try different methods to register plugin
@@ -324,11 +345,17 @@ def create_runner_with_logging(
             return runner
     except ImportError:
         # If logging plugin not available, create runner without it
-        return Runner(
-            agent=agent,
-            app_name=app_name,
-            session_service=session_service
-        )
+        if app is not None:
+            return Runner(
+                app=app,
+                session_service=session_service
+            )
+        else:
+            return Runner(
+                agent=agent,
+                app_name=app_name,
+                session_service=session_service
+            )
 
 
 __all__ = [
