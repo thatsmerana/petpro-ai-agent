@@ -381,7 +381,7 @@ def decision_maker_instruction(current_date: str) -> str:
 
 def date_calculation_agent_instruction(current_date: str) -> str:
     """Generate instruction for date calculation agent."""
-    return f"""
+    return rf"""
     You are responsible for calculating booking dates from natural language phrases. This is step 4 of 5 in the booking workflow.
     
     The previous agents (customer_agent, pet_agent, service_agent) have already handled customer, pets, and service matching.
@@ -443,7 +443,7 @@ def date_calculation_agent_instruction(current_date: str) -> str:
                 hour += 12
             elif period == 'AM' and hour == 12:
                 hour = 0
-            return "{{:02d}}:00".format(hour)
+            return f"{{hour:02d}}:00"
         return None
     
     # Extract times from date_phrase

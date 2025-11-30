@@ -32,6 +32,22 @@ class PetSitterAgentTester:
 
     async def cleanup(self):
         """Release resources to avoid unclosed aiohttp client session warnings."""
+        # Wait for all pending tasks to complete (excluding current task)
+        try:
+            current_task = asyncio.current_task()
+            # Get all pending tasks except the current one
+            pending = [task for task in asyncio.all_tasks() 
+                      if not task.done() and task is not current_task]
+            if pending:
+                # Wait for pending tasks with a timeout
+                await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
+        except (asyncio.TimeoutError, RuntimeError, AttributeError):
+            # If timeout, event loop issues, or all_tasks not available, just continue
+            pass
+        
+        # Small delay to ensure cleanup
+        await asyncio.sleep(0.1)
+        
         # Session service cleanup if available
         if session_service:
             close_method = getattr(session_service, "close", None)
@@ -45,20 +61,96 @@ class PetSitterAgentTester:
 
     async def run_conversation(self, conversation: List[Dict[str, str]]):
         """Run agent with conversation messages."""
-        for msg in conversation:
+        runner = get_runner()
+        for i, msg in enumerate(conversation):
+            print(f"\n{'='*60}")
+            print(f"Processing message {i+1}/{len(conversation)}: {msg['sender']}: {msg['message'][:50]}...")
+            print(f"{'='*60}")
+            
             user_query = (
                 f"NEW MESSAGE: {msg['sender']}: {msg['message']}\n"
                 "Analyze this new message within the ongoing pet sitting conversation and decide administrative actions."
             )
             content = types.Content(role='user', parts=[types.Part(text=user_query)])
 
-            async for event in get_runner().run_async(
-                user_id="123e4567-e89b-12d3-a456-426614174001",
-                session_id=self.session_id,
-                new_message=content
-            ):
-                if event.is_final_response() and hasattr(event, 'content') and event.content and event.content.parts:
-                    print(f"Agent Response: {event.content.parts[0].text}")
+            # Consume all events from the async generator to ensure all async operations complete
+            events = []
+            tool_calls_count = 0
+            try:
+                async for event in runner.run_async(
+                    user_id="123e4567-e89b-12d3-a456-426614174001",
+                    session_id=self.session_id,
+                    new_message=content
+                ):
+                    events.append(event)
+                    
+                    # Inspect event structure for debugging
+                    event_type = type(event).__name__
+                    
+                    # Check for tool calls - try multiple possible attributes
+                    tool_calls = None
+                    if hasattr(event, 'tool_calls'):
+                        tool_calls = event.tool_calls
+                    elif hasattr(event, 'tool_call'):
+                        tool_calls = [event.tool_call] if event.tool_call else []
+                    elif hasattr(event, 'function_calls'):
+                        tool_calls = event.function_calls
+                    
+                    if tool_calls:
+                        tool_calls_count += len(tool_calls) if isinstance(tool_calls, list) else 1
+                        for tool_call in (tool_calls if isinstance(tool_calls, list) else [tool_calls]):
+                            tool_name = getattr(tool_call, 'name', None) or getattr(tool_call, 'function_name', None) or str(tool_call)
+                            print(f"🔧 TOOL CALLED: {tool_name} (event_type={event_type})")
+                    
+                    # Check for tool results
+                    tool_results = None
+                    if hasattr(event, 'tool_results'):
+                        tool_results = event.tool_results
+                    elif hasattr(event, 'tool_result'):
+                        tool_results = [event.tool_result] if event.tool_result else []
+                    elif hasattr(event, 'function_results'):
+                        tool_results = event.function_results
+                    
+                    if tool_results:
+                        for tool_result in (tool_results if isinstance(tool_results, list) else [tool_results]):
+                            result_name = getattr(tool_result, 'name', None) or getattr(tool_result, 'function_name', None) or str(tool_result)
+                            print(f"✅ TOOL RESULT: {result_name}")
+                    
+                    # Log agent responses
+                    if event.is_final_response():
+                        if hasattr(event, 'content') and event.content:
+                            if hasattr(event.content, 'parts') and event.content.parts:
+                                response_text = event.content.parts[0].text if hasattr(event.content.parts[0], 'text') else str(event.content.parts[0])
+                                print(f"📝 Agent Response: {response_text[:200]}...")
+                    
+                    # Log agent name if available
+                    if hasattr(event, 'agent_name'):
+                        print(f"🤖 Agent: {event.agent_name}")
+                
+                print(f"📊 Summary: {len(events)} events, {tool_calls_count} tool calls")
+                
+            except Exception as e:
+                print(f"❌ Error processing message: {e}")
+                raise
+            finally:
+                # Ensure all async operations complete before moving to next message
+                # Wait for any pending tasks related to this request
+                try:
+                    # Give time for any background HTTP requests to complete
+                    await asyncio.sleep(0.5)
+                    # Check for pending tasks and wait for them
+                    current_task = asyncio.current_task()
+                    pending = [task for task in asyncio.all_tasks() 
+                              if not task.done() and task is not current_task]
+                    if pending:
+                        # Wait for pending tasks with a timeout
+                        await asyncio.wait_for(
+                            asyncio.gather(*pending, return_exceptions=True), 
+                            timeout=3.0
+                        )
+                except (asyncio.TimeoutError, RuntimeError, AttributeError):
+                    # If there are still pending tasks, give them more time
+                    await asyncio.sleep(0.5)
 
 
 SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
@@ -77,12 +169,29 @@ SAMPLE_CONVERSATIONS = {  # Sample conversation scenarios
     ]
 }
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 async def agent_tester():
+    """Fixture with function scope to ensure proper cleanup."""
     tester = PetSitterAgentTester()
     await tester.setup()
-    yield tester
-    await tester.cleanup()
+    try:
+        yield tester
+    finally:
+        # Wait for any remaining async operations to complete
+        try:
+            await asyncio.sleep(0.3)
+            current_task = asyncio.current_task()
+            pending = [task for task in asyncio.all_tasks() 
+                      if not task.done() and task is not current_task]
+            if pending:
+                await asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True), 
+                    timeout=2.0
+                )
+        except (asyncio.TimeoutError, RuntimeError, AttributeError):
+            pass
+        finally:
+            await tester.cleanup()
 
 @pytest.mark.asyncio
 async def test_complete_booking_scenario(agent_tester):

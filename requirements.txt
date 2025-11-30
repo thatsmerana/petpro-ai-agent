@@ -3,6 +3,7 @@ python-dotenv
 aiohttp
 pytest==9.0.1
 pytest-asyncio==1.3.0
+pytest-cov
 dateparser
 python-dateutil
 rapidfuzz>=3.0.0

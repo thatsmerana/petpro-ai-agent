@@ -168,7 +168,11 @@ def get_app():
     if not hasattr(get_app, '_app'):
         from . import root_agent
         
-        if _APP_AVAILABLE and App and EventsCompactionConfig:
+        # Check if root agent supports compaction (has canonical_model attribute)
+        # SequentialAgent and other composite agents don't have this attribute
+        supports_compaction = hasattr(root_agent, 'canonical_model') and root_agent.canonical_model is not None
+        
+        if _APP_AVAILABLE and App and EventsCompactionConfig and supports_compaction:
             # Configure events compaction: compact after every 5 conversations
             compaction_config = EventsCompactionConfig(
                 compaction_interval=5,  # Trigger compaction every 5 conversations
@@ -182,13 +186,19 @@ def get_app():
             )
             print("✅ App created with Events Compaction enabled (interval=5, overlap=1)")
         else:
-            # Fallback: create App without compaction if not available
+            # Fallback: create App without compaction
+            # This happens if:
+            # 1. App/EventsCompactionConfig not available
+            # 2. Root agent doesn't support compaction (e.g., SequentialAgent)
             if App:
                 app = App(
                     name=APP_NAME,
                     root_agent=root_agent,
                 )
-                print("⚠️ App created without Events Compaction (EventsCompactionConfig not available)")
+                if not supports_compaction:
+                    print("⚠️ App created without Events Compaction (root agent doesn't support canonical_model)")
+                else:
+                    print("⚠️ App created without Events Compaction (EventsCompactionConfig not available)")
             else:
                 app = None
                 print("⚠️ App class not available, will use Runner directly")
