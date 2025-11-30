@@ -1442,18 +1442,35 @@ async def ensure_booking_exists(
                 if isinstance(date_result, dict):
                     calculated_start_date = date_result.get("start_date") or calculated_start_date
                     calculated_end_date = date_result.get("end_date") or calculated_end_date
-                    calculated_start_time = date_result.get("start_time") or calculated_start_time
-                    calculated_end_time = date_result.get("end_time") or calculated_end_time
+                    # Handle times - check for None, empty string, or "null" string
+                    start_time_val = date_result.get("start_time")
+                    end_time_val = date_result.get("end_time")
+                    if start_time_val and start_time_val not in [None, "", "null", "None"]:
+                        calculated_start_time = start_time_val
+                    if end_time_val and end_time_val not in [None, "", "null", "None"]:
+                        calculated_end_time = end_time_val
                 elif isinstance(date_result, str):
                     # Try to parse JSON string
                     try:
                         date_data = json.loads(date_result)
                         calculated_start_date = date_data.get("start_date") or calculated_start_date
                         calculated_end_date = date_data.get("end_date") or calculated_end_date
-                        calculated_start_time = date_data.get("start_time") or calculated_start_time
-                        calculated_end_time = date_data.get("end_time") or calculated_end_time
+                        # Handle times - check for None, empty string, or "null" string
+                        start_time_val = date_data.get("start_time")
+                        end_time_val = date_data.get("end_time")
+                        if start_time_val and start_time_val not in [None, "", "null", "None"]:
+                            calculated_start_time = start_time_val
+                        if end_time_val and end_time_val not in [None, "", "null", "None"]:
+                            calculated_end_time = end_time_val
                     except:
                         pass
+        
+        # If dates are provided but times are not specified after extracting from state, set to cover entire day
+        if calculated_start_date and calculated_end_date:
+            if not calculated_start_time or (isinstance(calculated_start_time, str) and calculated_start_time.strip() in ["", "null", "None"]):
+                calculated_start_time = "00:00"
+            if not calculated_end_time or (isinstance(calculated_end_time, str) and calculated_end_time.strip() in ["", "null", "None"]):
+                calculated_end_time = "23:59"
         
         # If dates not provided and not in state, try to parse date_phrase directly as fallback
         if not calculated_start_date and date_phrase:
@@ -1499,6 +1516,11 @@ async def ensure_booking_exists(
                         elif am_pm == "AM" and hour == 12:
                             hour = 0
                         calculated_end_time = f"{hour:02d}:00"
+                    
+                    # If dates are provided but times are not specified, set to cover entire day
+                    if calculated_start_date and calculated_end_date and not calculated_start_time and not calculated_end_time:
+                        calculated_start_time = "00:00"
+                        calculated_end_time = "23:59"
             except Exception as e:
                 # If parsing fails, dates will remain None and we'll use placeholders
                 pass
@@ -1508,6 +1530,14 @@ async def ensure_booking_exists(
         final_end_date = calculated_end_date
         final_start_time = calculated_start_time
         final_end_time = calculated_end_time
+        
+        # If dates are provided but times are not specified, set to cover entire day
+        # Check for None, empty string, or falsy values
+        if final_start_date and final_end_date:
+            if not final_start_time or final_start_time.strip() == "":
+                final_start_time = "00:00"
+            if not final_end_time or final_end_time.strip() == "":
+                final_end_time = "23:59"
         
         # If still no dates, use placeholders as last resort (should not happen if date_calculation_agent was called)
         if not final_start_date:
@@ -1586,6 +1616,14 @@ async def ensure_booking_exists(
                             "source": "api",
                             "message": "Booking updated successfully"
                         })
+        
+        # Final safety check: ensure times are set if dates are present
+        # This is a last resort check right before creating the booking
+        if final_start_date and final_end_date:
+            if not final_start_time or (isinstance(final_start_time, str) and final_start_time.strip() == ""):
+                final_start_time = "00:00"
+            if not final_end_time or (isinstance(final_end_time, str) and final_end_time.strip() == ""):
+                final_end_time = "23:59"
         
         # Create new booking
         booking_data = {

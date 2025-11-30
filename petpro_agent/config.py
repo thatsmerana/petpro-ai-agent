@@ -4,11 +4,13 @@ import logging.handlers
 import os
 import datetime
 import json
+import uuid
 from pathlib import Path
+from typing import Optional, Dict, Any
 from google.genai import types
 from google.adk.models import Gemini
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import InMemorySessionService, Session
 
 # Import App and EventsCompactionConfig for context compaction
 try:
@@ -87,6 +89,78 @@ APP_NAME = "pet_sitter_agent"
 
 # Initialize session service (singleton)
 session_service = InMemorySessionService()
+
+async def create_session_with_state(
+    user_id: str,
+    session_id: Optional[str] = None,
+    professional_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    additional_state: Optional[Dict[str, Any]] = None
+) -> Session:
+    """
+    Create a session with initialized state for pet professional and customer information.
+    
+    This helper function initializes session state with professional_id and customer_id,
+    making them available to tools via tool_context.state. This replaces the need for
+    System messages to pass this information.
+    
+    Args:
+        user_id: User ID (typically the pet professional ID)
+        session_id: Optional session ID. If not provided, a UUID will be generated
+        professional_id: Pet professional ID to store in session state
+        customer_id: Existing customer ID to store in session state (optional)
+        additional_state: Additional state data to include (optional)
+    
+    Returns:
+        Session object with initialized state
+    
+    Example:
+        session = await create_session_with_state(
+            user_id="123e4567-e89b-12d3-a456-426614174001",
+            professional_id="123e4567-e89b-12d3-a456-426614174001",
+            customer_id="123e4567-e89b-12d3-a456-426614174004"
+        )
+    """
+    # Initialize session state
+    initial_state: Dict[str, Any] = {}
+    
+    # Add professional_id to state if provided
+    if professional_id:
+        initial_state["professional_id"] = professional_id
+    elif user_id:
+        # If professional_id not provided but user_id is, use user_id as professional_id
+        initial_state["professional_id"] = user_id
+    
+    # Add customer_id to state if provided
+    if customer_id:
+        initial_state["customer_id"] = customer_id
+        # Initialize tool_results structure for existing customer data
+        if "tool_results" not in initial_state:
+            initial_state["tool_results"] = {}
+        initial_state["tool_results"]["get_customer_profile"] = {
+            "extracted": {
+                "customer_id": customer_id,
+                "customers": []  # Will be populated when customer data is fetched
+            }
+        }
+    
+    # Merge any additional state
+    if additional_state:
+        initial_state.update(additional_state)
+    
+    # Generate session_id if not provided
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
+    # Create session with initialized state
+    session = await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        session_id=session_id,
+        state=initial_state
+    )
+    
+    return session
 
 # Initialize app with context compaction (singleton, lazy initialization to avoid circular imports)
 def get_app():
@@ -173,6 +247,7 @@ __all__ = [
     "APP_NAME",
     "session_service",
     "get_app",
-    "get_runner"
+    "get_runner",
+    "create_session_with_state"
 ]
 

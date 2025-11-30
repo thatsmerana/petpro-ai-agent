@@ -453,6 +453,17 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     start_time = parse_time(start_time_str.group(1)) if start_time_str else None
     end_time = parse_time(end_time_str.group(1)) if end_time_str else None
     
+    # CRITICAL: If dates are provided but times are not specified, ALWAYS set to cover entire day
+    # Never return None or null for times when dates are present - the API requires times
+    if start_time is None or start_time == "":
+        start_time = "00:00"
+    if end_time is None or end_time == "":
+        end_time = "23:59"
+    
+    # Ensure times are always strings, never None
+    start_time = start_time if start_time else "00:00"
+    end_time = end_time if end_time else "23:59"
+    
     result = {{
         "start_date": next_saturday.strftime('%Y-%m-%d'),
         "end_date": next_sunday.strftime('%Y-%m-%d'),
@@ -479,8 +490,8 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     {{
         "start_date": "YYYY-MM-DD",  # Start date in ISO format
         "end_date": "YYYY-MM-DD",     # End date in ISO format
-        "start_time": "HH:MM",        # Start time in 24-hour format (or null if not specified)
-        "end_time": "HH:MM",          # End time in 24-hour format (or null if not specified)
+        "start_time": "HH:MM",        # Start time in 24-hour format ("00:00" for entire day if dates provided but time not specified)
+        "end_time": "HH:MM",          # End time in 24-hour format ("23:59" for entire day if dates provided but time not specified)
         "date_phrase": "original date phrase from conversation"
     }}
     
@@ -493,7 +504,9 @@ def date_calculation_agent_instruction(current_date: str) -> str:
     - Handle time parsing if specified in the date phrase (e.g., "8 AM" → "08:00", "6 PM" → "18:00")
     - Convert times to 24-hour format (HH:MM)
     - Return dates in YYYY-MM-DD format
-    - If time is not specified, set start_time and end_time to null
+    - **CRITICAL: If dates are provided but times are NOT specified, ALWAYS set start_time to "00:00" and end_time to "23:59" to book for the entire day**
+    - **NEVER return null, None, or empty string for start_time or end_time when dates are present - the API requires these fields**
+    - If neither dates nor times are specified, you should still calculate dates from the date phrase if possible
     - Output ONLY the raw JSON object - no markdown, no code blocks, no explanatory text
     - The JSON will be stored in state and used by booking_creation_agent
     
